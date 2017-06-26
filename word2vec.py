@@ -2,8 +2,6 @@ import numpy as np
 import random
 import math
 
-import matplotlib.pyplot as plt
-
 import dnn
 
 		
@@ -189,6 +187,8 @@ if __name__ == '__main__':
 	keys = sorted(keys, key=lambda name: hist[name],reverse=True)
 	vals = sorted(hist.values(), reverse = True)
 
+	print("Número de palabras distintas:", len(keys))
+
 	total = sum(vals)
 
 	p_word_keep = [x/total for x in vals]
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 	to_oneHot = {}
 	i = 0
 	for word in keys:
-		oh = np.zeros(len(keys))
+		oh = np.zeros((len(keys),1))
 		oh[i] = 1
 		to_oneHot[word]= oh
 		i+=1
@@ -205,18 +205,40 @@ if __name__ == '__main__':
 	train_examples = []
 
 	window = 3
+	cont = 0
 	for w_i in range(len(w)):
 		for c_i in range(w_i-window, w_i+window):
 			if c_i < 0 or c_i >= len(w) or c_i == w_i:
 				continue
-			if random.random() < p_word_keep[w[w_i]]:
+			if random.random() < p_word_keep[keys.index(w[w_i])]:
+				cont += 1
 				continue
 			train_examples.append((to_oneHot[w[w_i]], to_oneHot[w[c_i]]))
-	len(train_examples)
+
+	print("Ejemplos finales de entrenamiento:",len(train_examples))
+	print("Ejemplos ahorrados con el subsampling:", cont)
+
+	len_dim = 100
+
+	w2v = dnn.DNN([
+		dnn.Fully_Connected_Layer(len(keys),len_dim, "sigmoid"),
+		dnn.Fully_Connected_Layer(len_dim, len(keys), "softmax")
+	])
+
+	w2v.SGD(train_examples, 1, 10, 0.005, 0.0005)
+
+	last = w2v.layers.pop()
+
+	with open("data_for_w2v/w2v.enc","w") as f:
+		for w in keys:
+			f.write(w+"\n")
+			point = w2v.prop(np.asarray(to_oneHot[w]))
+			str_ = ""
+			for d in point:
+				str_ += str(d[0])+" "
+			f.write(str_ + "\n")
 
 
-	#plt.plot(sorted(rep))
-	#plt.show()
 
 
 	

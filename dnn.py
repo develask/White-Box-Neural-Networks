@@ -294,14 +294,14 @@ class DNN():
 			# 	print(self.layers[i].get_a_during_prop())
 			# print("----------------------------------------------")	
 
-		for i in range(len(self.layers)):
-			print("Weight matrix of layer nb", i)
-			print(self.layers[i].get_W())
-		print("----------------------------------------------")
-		for i in range(len(self.layers)):
-			print("Bias matrix of layer nb", i)
-			print(self.layers[i].get_b())
-		print("----------------------------------------------")
+		# for i in range(len(self.layers)):
+		# 	print("Weight matrix of layer nb", i)
+		# 	print(self.layers[i].get_W())
+		# print("----------------------------------------------")
+		# for i in range(len(self.layers)):
+		# 	print("Bias matrix of layer nb", i)
+		# 	print(self.layers[i].get_b())
+		# print("----------------------------------------------")
 
 
 					

@@ -1,65 +1,109 @@
 import numpy as np
 import random
 import math
+from functools import reduce
 
 
 class Activation_Function():
 	def __init__(self, name):
 		self.name = name
-
-	def ff(self, z):
 		if self.name == "sigmoid":
-			return 1 / (1 + np.exp(-z))
+			self.ff = lambda z: 1 / (1 + np.exp(-z))
+			self.derivate = lambda z: np.exp(-z)/(1+np.exp(-z))**2
+			self.derivative_ff = lambda a: a*(1-a)
+
 
 		elif self.name == "softmax":
-			exp = np.exp(z)
-			return exp/np.sum(exp)
+			def ff_ (z):
+				exp = np.exp(z)
+				return exp/np.sum(exp)
+			self.ff = ff_
+			def derivate_(z):
+				exp = np.exp(z)
+				suma = np.sum(exp)
+				div = exp / suma
+				return div - div**2
+			self.derivate = derivate_
+			self.derivative_ff = lambda a: a - a**2
 
 		elif self.name == "relu":
-			return np.maximum(z, 0)
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivate = lambda z: (np.sign(z)+1)/2
+			self.derivative_ff = lambda a: np.sign(a)
 
 		elif self.name == "linear":
-			return z
-
+			self.ff = lambda z: z
+			self.derivate = lambda z: np.full(z.shape, 1)
+			self.derivative_ff = lambda a: a/a
 		else:
 			raise ValueError("Not defined activation function")
 
-	def derivative(self, z):
-		if self.name == "sigmoid":
-			return np.exp(-z)/(1+np.exp(-z))**2
+	# def ff(self, z):
+	# 	return self.ff_(z)
 
-		elif self.name == "softmax":
-			exp = np.exp(z)
-			suma = np.sum(exp)
-			div = exp / suma
-			return div - div**2
+	# def derivative(self, z):
+	# 	return self.derivate_(z)
 
-		elif self.name == "relu":
-			return (np.sign(z)+1)/2
+	# def derivative_ff(self, a):
+	# 	# compute the derivative in function of the ff function, the activation
+	# 	return self.derivative_ff_(a)
 
-		elif self.name == "linear":
-			return np.full(z.shape, 1)
+class Layer:
+	def __init__(self):
+		self.next = []
+		self.prev = []
+		self.initialize_done = False
 
-		else:
-			raise ValueError("Not defined activation function")
+	def addNext(self, layer):
+		self.next.append(layer)
+		layer.addPrev(self)
 
-	def derivative_ff(self, a):
-		# compute the derivative in function of the ff function, the activation
-		if self.name == "sigmoid":
-			return a*(1-a)
+	def addPrev(self, layer):
+		self.prev.append(layer)
 
-		elif self.name == "softmax":
-			return a - a**2
+	def get_Input_dim(self):
+		return sum(map(lambda l: l.get_Output_dim(), self.prev))
 
-		elif self.name == "relu":
-			return np.sign(a)
+	def get_Output_dim(self):
+		raise NotImplementedError( "Should have implemented this" )
 
-		elif self.name == "linear":
-			return a/a
-			return np.full(a.shape, 1)
+	def initialize(self):
+		raise NotImplementedError( "Should have implemented this" )
 
-		else:
-			raise ValueError("Not defined activation function")
+class Input(Layer):
+	def __init__(self, input_dim):
+		super(Input, self).__init__()
+		self.input_dim = input_dim
+
+	def get_Output_dim(self):
+		return self.input_dim
+
+	def initialize(self):
+		self.initialize_done = True
+		to_init = []
+		to_init += self.next
+		while len(to_init)>0:
+			layer = to_init.pop(0)
+			if sum(map(lambda l: not l.initialize_done, layer.prev)) == 0:
+				layer.initialize()
+				to_init += layer.next
+
+class Fully_Connected(Layer):
+	def __init__(self, output_dim):
+		super(Fully_Connected, self).__init__()
+		self.output_dim = output_dim
+		
+	def get_Output_dim(self):
+		return self.output_dim
+
+	def initialize(self):
+		self.W = np.random.normal(scale=1 ,size=(self.output_dim, self.get_Input_dim()))
+		self.b = np.zeros((self.output_dim, 1))
+		print(self.W.shape)
+		self.initialize_done = True
+		
+		
+		
 
 
 class Fully_Connected_Layer():
@@ -172,9 +216,7 @@ class Loss():
 				return -y/(a) + (1-y)/(1-a)
 			else:
 				return -(y)/(a+0.0001) + (1-y)/(1.0001-a)
-
-
-		
+	
 
 class DNN():
 	def __init__(self, layers):
@@ -223,15 +265,24 @@ class DNN():
 		b_grads = []
 		len_tr = len(training_data)
 
-		for i in range(nb_epochs):
-			l = 0
-			out_1 = 0
-			for ex in training_data:
-				out = self.prop(ex[0])
-				l += self.loss.ff(out,ex[1])/len_tr
-				out_1 += out[0][0]/len_tr
+		# def porLayer(w_b_layer):
+		# 	w = w_b_layer[0] + w_b_layer[2].get_W_gradient()
+		# 	b = w_b_layer[1] + w_b_layer[2].get_b_gradient()
+		# 	return (w, b)
 
-			print("training loss", l[0])
+		# def porEjemplo(W_b, ex):
+		# 	self.backprop(*ex)
+		# 	return list(zip(*map(porLayer, zip(W_b[0], W_b[1], self.layers))))
+
+		for i in range(nb_epochs):
+			# l = 0
+			# out_1 = 0
+			# for ex in training_data:
+			# 	out = self.prop(ex[0])
+			# 	l += self.loss.ff(out,ex[1])/len_tr
+			# 	out_1 += out[0][0]/len_tr
+
+			# print("training loss", l[0])
 
 			random.shuffle(training_data)
 			mini_batches = [ training_data[k:k+batch_size] for k in range(0, len_tr, batch_size)]
@@ -240,6 +291,23 @@ class DNN():
 				# update the DNN according to this mini batch
 
 				# compute the errors and gradients per example
+
+				# --------
+
+				# W_grads = [0]* len(self.layers)
+				# b_grads = [0]* len(self.layers)
+
+
+				# W_grads, b_grads = reduce(porEjemplo, m_b, (W_grads, b_grads))
+
+
+				# W_grads = list(map(lambda w: w*lr/len_tr, W_grads))
+				# b_grads = list(map(lambda b: b*lr/len_tr, b_grads))
+
+
+				# -------
+
+
 				len_m_b = len(m_b)
 				W_grads = []
 				b_grads = []
@@ -260,6 +328,8 @@ class DNN():
 					for k in range(len(self.layers)):
 						W_grads[k] += self.layers[k].get_W_gradient()*lr/len_m_b
 						b_grads[k] += self.layers[k].get_b_gradient()*lr/len_m_b
+
+				# ---------- 
 
 				# update weights and biases:
 				for k in range(len(self.layers)):
@@ -312,36 +382,54 @@ class DNN():
 
 
 
-
-
 if __name__ == '__main__':
 
-	dnn = DNN([Fully_Connected_Layer(1,50, "sigmoid"),
-			   Fully_Connected_Layer(50,50, "sigmoid"),
-			   Fully_Connected_Layer(50,50, "sigmoid"),
-			   Fully_Connected_Layer(50,50, "sigmoid"),
-			   Fully_Connected_Layer(50,2, "softmax")])
+	in_layer = Input(1000)
+
+	hidden = Fully_Connected(32)
+	in_layer.addNext(hidden)
+
+	out_layer = Fully_Connected(1000)
+	hidden.addNext(out_layer)
+
+	in_layer.initialize()
+
+	# import time
+
+	# dnn = DNN([Fully_Connected_Layer(1,50, "sigmoid"),
+	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
+	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
+	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
+	# 		   Fully_Connected_Layer(50,2, "softmax")])
 
 
-	### generate some data...
+	# ### generate some data...
 
-	training_data = []
+	# training_data = []
 
-	for i in range(20000):
-		x = random.random()
-		training_data.append((np.asarray([[x]]), np.asarray([[ math.sin(x)**2 ], [ math.cos(x)**2 ]] )))
 
-	print("gonna train, holly shit I'm nervous")
-	dnn.SGD(training_data, 1, 10, 0.005, 0.0005)
+	# for i in range(20000):
+	# 	x = random.random()
+	# 	training_data.append((np.asarray([[x]]), np.asarray([[ math.sin(x)**2 ], [ math.cos(x)**2 ]] )))
 
-	print("let's compute x = 0.3")
-	print(dnn.prop(np.asarray([[0.3]])))
+	# print("gonna train, holly shit I'm nervous")
 
-	print("let's compute x = 0.51")
-	print(dnn.prop(np.asarray([[0.51]])))
+	# start = time.clock()
 
-	print("let's compute x = 0.9")
-	print(dnn.prop(np.asarray([[0.9]])))
+	# dnn.SGD(training_data, 128, 4, 0.005, 0.0005)
+
+	# end = time.clock()
+	# interval_c = end-start
+	# print("Time training: %.2gs" % interval_c)
+
+	# print("let's compute x = 0.3")
+	# print(dnn.prop(np.asarray([[0.3]])))
+
+	# print("let's compute x = 0.51")
+	# print(dnn.prop(np.asarray([[0.51]])))
+
+	# print("let's compute x = 0.9")
+	# print(dnn.prop(np.asarray([[0.9]])))
 
 
 

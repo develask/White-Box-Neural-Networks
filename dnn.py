@@ -64,10 +64,16 @@ class Layer:
 	def get_Input_dim(self):
 		return sum(map(lambda l: l.get_Output_dim(), self.prev))
 
+	def get_Output(self):
+		return self.a
+
 	def get_Output_dim(self):
 		raise NotImplementedError( "Should have implemented this" )
 
 	def initialize(self):
+		raise NotImplementedError( "Should have implemented this" )
+
+	def prop(self, x_labels):
 		raise NotImplementedError( "Should have implemented this" )
 
 class Input(Layer):
@@ -80,18 +86,18 @@ class Input(Layer):
 
 	def initialize(self):
 		self.initialize_done = True
-		to_init = []
-		to_init += self.next
-		while len(to_init)>0:
-			layer = to_init.pop(0)
-			if sum(map(lambda l: not l.initialize_done, layer.prev)) == 0:
-				layer.initialize()
-				to_init += layer.next
+
+	def prop(self, x_labels, proped = []):
+		proped.append(self)
+		self.a = x_labels
+		return self.a, proped
+
 
 class Fully_Connected(Layer):
 	def __init__(self, output_dim):
 		super(Fully_Connected, self).__init__()
 		self.output_dim = output_dim
+		self.act_f = Activation_Function("sigmoid")
 		
 	def get_Output_dim(self):
 		return self.output_dim
@@ -101,9 +107,22 @@ class Fully_Connected(Layer):
 		self.b = np.zeros((self.output_dim, 1))
 		print(self.W.shape)
 		self.initialize_done = True
-		
-		
-		
+
+	def prop(self, inp, proped=[]):
+		if self not in proped:
+			new_inp = None
+			for layer in self.prev:
+				new_inp_, proped = layer.prop(inp, proped)
+				if not type(new_inp) is np.ndarray:
+					new_inp = new_inp_
+				else:
+					new_inp = np.concatenate((new_inp, new_inp_), axis=0)
+			self.z = np.dot(self.W, new_inp) + self.b
+			self.a = self.act_f.ff(self.z)
+			proped.append(self)
+		return self.a, proped
+
+
 
 
 class Fully_Connected_Layer():
@@ -165,7 +184,6 @@ class Fully_Connected_Layer():
 	def backprop_error(self, W_next_layer, error_next_layer):
 		self.error = np.dot(np.transpose(W_next_layer), error_next_layer) * self.act_f.derivative_ff(self.a)
 
-
 	def set_loss_error(self, loss_gradient):
 		# this function will be used in the first step of the BP., when the error is set from 
 		# the cost function (in supervised learning)
@@ -219,20 +237,34 @@ class Loss():
 	
 
 class DNN():
-	def __init__(self, layers):
-		self.layers = layers
+	def __init__(self):
+		self.inputs = []
+		self.outputs = []
 		self.loss = Loss("ce1")
 
+	def initialize(self):
+		to_init = []
+		to_init += self.inputs
+		while len(to_init)>0:
+			layer = to_init.pop(0)
+			if sum(map(lambda l: not l.initialize_done, layer.prev)) == 0:
+				layer.initialize()
+				if len(layer.next) == 0:
+					self.outputs.append(layer)
+				else:
+					to_init += layer.next
 
+	def add_inputs(self, layer):
+		self.inputs.append(layer)
 
 
 	def prop(self, inp):
-		output =  inp
-		for layer in self.layers:
-			output = layer.prop(output)
-		return(output)
-
-
+		proped = []
+		ems = []
+		for layer in self.outputs:
+			em, proped = layer.prop(inp, proped)
+			ems.append(em)
+		return ems
 
 
 	def backprop(self, inp, desired_output):
@@ -254,9 +286,6 @@ class DNN():
 
 		for i in range(1, len(self.layers)):
 			self.layers[i].compute_gradients(self.layers[i-1].get_a_during_prop())
-
-
-
 
 	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end):
 		lr = lr_start
@@ -384,15 +413,29 @@ class DNN():
 
 if __name__ == '__main__':
 
-	in_layer = Input(1000)
+	nn = DNN()
 
-	hidden = Fully_Connected(32)
+
+	in_layer = Input(5)
+
+	hidden = Fully_Connected(7)
+	hidden_ = Fully_Connected(6)
+
 	in_layer.addNext(hidden)
+	in_layer.addNext(hidden_)
 
-	out_layer = Fully_Connected(1000)
+	out_layer = Fully_Connected(3)
 	hidden.addNext(out_layer)
+	hidden_.addNext(out_layer)
 
-	in_layer.initialize()
+	nn.add_inputs(in_layer)
+
+	nn.initialize()
+
+	inp = np.asarray([[1],[2],[3],[4],[5]])
+	print("inp:", inp.shape)
+	em = nn.prop(inp)
+	print("em:", em[0].shape)
 
 	# import time
 

@@ -49,23 +49,21 @@ class Activation_Function():
 	# 	return self.derivative_ff_(a)
 
 class Layer:
-	def __init__(self):
+	def __init__(self, name):
 		self.next = []
 		self.prev = []
 		self.initialize_done = False
+		self.name = name
 
 	def addNext(self, layer):
 		self.next.append(layer)
-		layer.addPrev(self)
-
-	def addPrev(self, layer):
-		self.prev.append(layer)
+		layer.prev.append(self)
 
 	def get_Input_dim(self):
 		return sum(map(lambda l: l.get_Output_dim(), self.prev))
 
 	def get_Output(self):
-		return self.a
+		return [self.a]
 
 	def get_Output_dim(self):
 		raise NotImplementedError( "Should have implemented this" )
@@ -73,12 +71,12 @@ class Layer:
 	def initialize(self):
 		raise NotImplementedError( "Should have implemented this" )
 
-	def prop(self, x_labels):
+	def prop(self, x_labels, proped = []):
 		raise NotImplementedError( "Should have implemented this" )
 
 class Input(Layer):
-	def __init__(self, input_dim):
-		super(Input, self).__init__()
+	def __init__(self, input_dim, name):
+		super(Input, self).__init__(name)
 		self.input_dim = input_dim
 
 	def get_Output_dim(self):
@@ -87,15 +85,14 @@ class Input(Layer):
 	def initialize(self):
 		self.initialize_done = True
 
-	def prop(self, x_labels, proped = []):
-		proped.append(self)
+	def prop(self, x_labels):
 		self.a = x_labels
-		return self.a, proped
+		return [self.a]
 
 
 class Fully_Connected(Layer):
-	def __init__(self, output_dim):
-		super(Fully_Connected, self).__init__()
+	def __init__(self, output_dim, name):
+		super(Fully_Connected, self).__init__(name)
 		self.output_dim = output_dim
 		self.act_f = Activation_Function("sigmoid")
 		
@@ -105,22 +102,20 @@ class Fully_Connected(Layer):
 	def initialize(self):
 		self.W = np.random.normal(scale=1 ,size=(self.output_dim, self.get_Input_dim()))
 		self.b = np.zeros((self.output_dim, 1))
-		print(self.W.shape)
+		print("name:",self.name, "-",self.W.shape)
 		self.initialize_done = True
 
-	def prop(self, inp, proped=[]):
-		if self not in proped:
-			new_inp = None
-			for layer in self.prev:
-				new_inp_, proped = layer.prop(inp, proped)
-				if not type(new_inp) is np.ndarray:
-					new_inp = new_inp_
-				else:
-					new_inp = np.concatenate((new_inp, new_inp_), axis=0)
-			self.z = np.dot(self.W, new_inp) + self.b
-			self.a = self.act_f.ff(self.z)
-			proped.append(self)
-		return self.a, proped
+	def prop(self, inputs):
+		inp = None
+		for layer in self.prev:
+			inp_ = inputs[layer][0]
+			if not type(inp) is np.ndarray:
+				inp = inp_
+			else:
+				inp = np.concatenate((inp, inp_), axis=0)
+		self.z = np.dot(self.W, inp) + self.b
+		self.a = self.act_f.ff(self.z)
+		return [self.a]
 
 
 
@@ -242,29 +237,52 @@ class DNN():
 		self.outputs = []
 		self.loss = Loss("ce1")
 
+	def calculate_layer_order(self):
+		self.prop_order = self.inputs
+		i = 0
+		while i < len(self.prop_order):
+			layer = self.prop_order[i]
+			for l in layer.next:
+				if sum(map(lambda l_: not l_ in self.prop_order, l.prev)) == 0 and not l in self.prop_order:
+					self.prop_order.append(l)
+			i+=1
+
+	def changeToList(self):
+		for layer in self.prop_order:
+			prev = []
+			for l in layer.prev:
+				prev.append(self.prop_order.index(l))
+			layer.prev = prev
+			next = []
+			for l in layer.next:
+				next.append(self.prop_order.index(l))
+			layer.next = next
+
 	def initialize(self):
-		to_init = []
-		to_init += self.inputs
-		while len(to_init)>0:
-			layer = to_init.pop(0)
-			if sum(map(lambda l: not l.initialize_done, layer.prev)) == 0:
-				layer.initialize()
-				if len(layer.next) == 0:
+		self.calculate_layer_order()
+		for layer in self.prop_order:
+			layer.initialize()
+			if len(layer.next) == 0:
 					self.outputs.append(layer)
-				else:
-					to_init += layer.next
+		self.changeToList()
+			
 
 	def add_inputs(self, layer):
 		self.inputs.append(layer)
 
 
 	def prop(self, inp):
-		proped = []
-		ems = []
-		for layer in self.outputs:
-			em, proped = layer.prop(inp, proped)
-			ems.append(em)
-		return ems
+		inputs = []
+		for layer in self.prop_order:
+			if isinstance(layer, Input):
+				inputs.append(layer.prop(inp.pop(0)))
+			else:
+				inputs.append(layer.prop(inputs))
+		em = []
+		print(len(self.outputs))
+		for l in self.outputs:
+			em+=l.get_Output()
+		return em
 
 
 	def backprop(self, inp, desired_output):
@@ -415,27 +433,42 @@ if __name__ == '__main__':
 
 	nn = DNN()
 
+	cero = Input(5, "0")
+	uno = Input(5, "1")
 
-	in_layer = Input(5)
+	dos = Fully_Connected(2, "2")
+	tres = Fully_Connected(3, "3")
+	cuatro = Fully_Connected(4, "4")
+	cinco = Fully_Connected(5, "5")
+	seis = Fully_Connected(6, "6")
+	siete = Fully_Connected(7, "7")
 
-	hidden = Fully_Connected(7)
-	hidden_ = Fully_Connected(6)
+	cero.addNext(tres)
 
-	in_layer.addNext(hidden)
-	in_layer.addNext(hidden_)
+	uno.addNext(cinco)
+	uno.addNext(dos)
+	uno.addNext(tres)
+	uno.addNext(cuatro)
 
-	out_layer = Fully_Connected(3)
-	hidden.addNext(out_layer)
-	hidden_.addNext(out_layer)
+	dos.addNext(cinco)
+	tres.addNext(cinco)
+	cuatro.addNext(seis)
+	cuatro.addNext(siete)
 
-	nn.add_inputs(in_layer)
+	cinco.addNext(siete)
+	seis.addNext(siete)
+
+	nn.add_inputs(uno)
+	nn.add_inputs(cero)
 
 	nn.initialize()
 
 	inp = np.asarray([[1],[2],[3],[4],[5]])
-	print("inp:", inp.shape)
-	em = nn.prop(inp)
-	print("em:", em[0].shape)
+	inp2 = np.asarray([[6],[7],[8],[9],[10]])
+	print("inp:", (inp.shape, inp2.shape))
+	ems = nn.prop([inp, inp2])
+	print("em:", [em.shape for em in ems])
+	print(ems)
 
 	# import time
 

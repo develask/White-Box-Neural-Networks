@@ -103,7 +103,6 @@ class Fully_Connected(Layer):
 	def initialize(self):
 		self.W = np.random.normal(scale=1 ,size=(self.output_dim, self.get_Input_dim()))
 		self.b = np.zeros((self.output_dim, 1))
-		print("name:",self.name, "-",self.W.shape)
 		self.initialize_done = True
 
 	def prop(self, inputs):
@@ -280,7 +279,6 @@ class DNN():
 			else:
 				inputs.append(layer.prop(inputs))
 		em = []
-		print(len(self.outputs))
 		for l in self.outputs:
 			em+=l.get_Output()
 		return em
@@ -435,7 +433,7 @@ if __name__ == '__main__':
 	nn = DNN()
 
 	cero = Input(5, "0")
-	uno = Input(5, "1")
+	uno = Input(10, "1")
 
 	dos = Fully_Connected(2, "2")
 	tres = Fully_Connected(3, "3")
@@ -464,11 +462,11 @@ if __name__ == '__main__':
 
 	nn.initialize()
 
-	inp = np.asarray([[1],[2],[3],[4],[5]])
-	inp2 = np.asarray([[6],[7],[8],[9],[10]])
+	inp = np.asarray([[6],[7],[8],[9],[10],[1],[2],[3],[4],[5]])
+	inp2 = np.asarray([[1],[2],[3],[4],[5]])
 	print("inp:", (inp.shape, inp2.shape))
 	ems = nn.prop([inp, inp2])
-	print("em:", [em.shape for em in ems])
+	print("out:", [em.shape for em in ems])
 	print(ems)
 
 	# import time

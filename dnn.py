@@ -55,9 +55,10 @@ class Layer:
 		self.initialize_done = False
 		self.name = name
 
-	def addNext(self, layer):
+	def addNext(self, layer, output_idx = 0):
 		self.next.append(layer)
 		layer.prev.append(self)
+		layer.input_idx = output_idx
 
 	def get_Input_dim(self):
 		return sum(map(lambda l: l.get_Output_dim(), self.prev))
@@ -108,7 +109,7 @@ class Fully_Connected(Layer):
 	def prop(self, inputs):
 		inp = None
 		for layer in self.prev:
-			inp_ = inputs[layer][0]
+			inp_ = inputs[layer][self.input_idx]
 			if not type(inp) is np.ndarray:
 				inp = inp_
 			else:

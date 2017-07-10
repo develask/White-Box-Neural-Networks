@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import math
+import time
 from functools import reduce
 
 
@@ -55,16 +56,41 @@ class Layer:
 		self.initialize_done = False
 		self.name = name
 
-	def addNext(self, layer, output_idx = 0):
+	def addNext(self, layer):
 		self.next.append(layer)
 		layer.prev.append(self)
-		layer.input_idx = output_idx
 
 	def get_Input_dim(self):
 		return sum(map(lambda l: l.get_Output_dim(), self.prev))
 
 	def get_Output(self):
-		return [self.a]
+		return self.a
+
+	def set_loss_error(self, loss_gradient):
+		# this function will be used in the first step of the BP., when the error is set from 
+		# the cost function (in supervised learning)
+		self.error = loss_gradient * self.act_f.derivative_ff(self.a)
+		#self.error = loss_gradient * self.act_f.derivative(self.z)
+
+	def backprop_error(self):
+		wt_d = 0
+		for layer in self.next:
+			wt_d += np.dot(np.transpose(layer.W_of_layer(self)), layer.error)
+		self.error = wt_d * self.act_f.derivative_ff(self.a)
+
+	def compute_gradients(self):
+		self.b_grad = self.error
+		self.W_grad = [np.dot(self.error, np.transpose(l.get_Output())) for l in self.prev]
+
+	def calculate_derivate_ff(self):
+		return self.act_f.derivative_ff(self.a)
+
+	def update_W(self, increments):
+		for i in range(len(increments)):
+			self.W[i] -= increments[i]
+
+	def update_b(self, increment):
+		self.b -= increment
 
 	def get_Output_dim(self):
 		raise NotImplementedError( "Should have implemented this" )
@@ -88,34 +114,36 @@ class Input(Layer):
 
 	def prop(self, x_labels):
 		self.a = x_labels
-		return [self.a]
+		return self.a
 
 
 class Fully_Connected(Layer):
-	def __init__(self, output_dim, name):
+	def __init__(self, output_dim, activation_function, name):
 		super(Fully_Connected, self).__init__(name)
 		self.output_dim = output_dim
-		self.act_f = Activation_Function("sigmoid")
+		self.act_f = Activation_Function(activation_function)
 		
 	def get_Output_dim(self):
 		return self.output_dim
 
 	def initialize(self):
-		self.W = np.random.normal(scale=1 ,size=(self.output_dim, self.get_Input_dim()))
+		self.W = [
+			np.random.normal(scale=1 ,size=(self.output_dim, l.get_Output_dim())) for l in self.prev]
 		self.b = np.zeros((self.output_dim, 1))
 		self.initialize_done = True
 
-	def prop(self, inputs):
-		inp = None
-		for layer in self.prev:
-			inp_ = inputs[layer][self.input_idx]
-			if not type(inp) is np.ndarray:
-				inp = inp_
-			else:
-				inp = np.concatenate((inp, inp_), axis=0)
-		self.z = np.dot(self.W, inp) + self.b
+	def W_of_layer(self, layer):
+		for i in range(len(self.prev)):
+			if self.prev[i] is layer:
+				return self.W[i]
+
+	def prop(self):
+		inp = 0
+		for i in range(len(self.prev)):
+			inp += np.dot(self.W[i], self.prev[i].get_Output())
+		self.z = inp + self.b
 		self.a = self.act_f.ff(self.z)
-		return [self.a]
+		return self.a
 
 
 
@@ -234,11 +262,11 @@ class Loss():
 class DNN():
 	def __init__(self):
 		self.inputs = []
-		self.outputs = []
+		self.output_layer = None
 		self.loss = Loss("ce1")
 
 	def calculate_layer_order(self):
-		self.prop_order = self.inputs
+		self.prop_order = self.inputs.copy()
 		i = 0
 		while i < len(self.prop_order):
 			layer = self.prop_order[i]
@@ -247,62 +275,57 @@ class DNN():
 					self.prop_order.append(l)
 			i+=1
 
-	def changeToList(self):
-		for layer in self.prop_order:
-			prev = []
-			for l in layer.prev:
-				prev.append(self.prop_order.index(l))
-			layer.prev = prev
-			next = []
-			for l in layer.next:
-				next.append(self.prop_order.index(l))
-			layer.next = next
+	# def changeToList(self):
+	# 	for layer in self.prop_order:
+	# 		prev = []
+	# 		for l in layer.prev:
+	# 			prev.append(self.prop_order.index(l))
+	# 		layer.prev = prev
+	# 		next = []
+	# 		for l in layer.next:
+	# 			next.append(self.prop_order.index(l))
+	# 		layer.next = next
 
 	def initialize(self):
 		self.calculate_layer_order()
 		for layer in self.prop_order:
 			layer.initialize()
 			if len(layer.next) == 0:
-					self.outputs.append(layer)
-		self.changeToList()
-			
+					self.output_layer = layer
+		#self.changeToList()
 
 	def add_inputs(self, layer):
 		self.inputs.append(layer)
 
+	def get_Output(self):
+		return self.output_layer.get_Output()
 
 	def prop(self, inp):
-		inputs = []
-		for layer in self.prop_order:
-			if isinstance(layer, Input):
-				inputs.append(layer.prop(inp.pop(0)))
-			else:
-				inputs.append(layer.prop(inputs))
-		em = []
-		for l in self.outputs:
-			em+=l.get_Output()
-		return em
-
+		return [layer.prop(inp.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1]
 
 	def backprop(self, inp, desired_output):
 		# print(desired_output)
-		self.prop(inp)
+		layer_outputs = self.prop(inp.copy())
+
+		#layer_dervs = [l.calculate_derivate_ff() for l in self.prop_order]
+		#layer_Ws = [(l.W, l.next_dim, l.next) for l in self.prop_order]
+
+		#errors = [None]*len(layer_dervs)
 		# print(self.loss.grad(self.rev_layers[0].get_a_during_prop(), desired_output))
 		# print(self.loss.ff(self.rev_layers[0].get_a_during_prop(), desired_output))
 
 		# compute the errors
-		self.layers[-1].set_loss_error(self.loss.grad(self.layers[-1].get_a_during_prop(), desired_output))
+		self.prop_order[-1].set_loss_error(self.loss.grad(self.prop_order[-1].get_Output(), desired_output))
+		self.prop_order[-1].compute_gradients()
 		# where rev_layers[0].get_a_during_prop is just the output of the DNN for the given inp.
 
 
-		for i in range(len(self.layers)-2, -1, -1):
-			self.layers[i].backprop_error(self.layers[i+1].get_W(), self.layers[i+1].get_error())
-
-		# compute the gradients
-		self.layers[0].compute_gradients(inp)
-
-		for i in range(1, len(self.layers)):
-			self.layers[i].compute_gradients(self.layers[i-1].get_a_during_prop())
+		#for i in range(len(self.layers)-, -1, -1):
+		for layer in self.prop_order[-2:len(self.inputs)-1:-1]:
+			if not isinstance(layer, Input):
+				layer.backprop_error()
+				layer.compute_gradients()
+			
 
 	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end):
 		lr = lr_start
@@ -321,17 +344,18 @@ class DNN():
 		# 	return list(zip(*map(porLayer, zip(W_b[0], W_b[1], self.layers))))
 
 		for i in range(nb_epochs):
-			# l = 0
-			# out_1 = 0
-			# for ex in training_data:
-			# 	out = self.prop(ex[0])
-			# 	l += self.loss.ff(out,ex[1])/len_tr
-			# 	out_1 += out[0][0]/len_tr
+			#------------------
+			loss = 0
+			#out_1 = 0
+			for ex in training_data:
+				out = self.prop(ex[0].copy())
+				loss += self.loss.ff(out,ex[1])/len_tr
+				#out_1 += out[0][0]/len_tr
 
-			# print("training loss", l[0])
-
+			print("training loss", loss[0])
+			#------------------
 			random.shuffle(training_data)
-			mini_batches = [ training_data[k:k+batch_size] for k in range(0, len_tr, batch_size)]
+			mini_batches = [ training_data[ k:k+batch_size ] for k in range(0, len_tr, batch_size)]
 			
 			for m_b in mini_batches:
 				# update the DNN according to this mini batch
@@ -355,15 +379,23 @@ class DNN():
 
 
 				len_m_b = len(m_b)
-				W_grads = []
-				b_grads = []
+				W_grads = [None] * len(self.prop_order) 
+				b_grads = [None] * len(self.prop_order)
+				lr_coef = lr/len_m_b
 
+				# self.backprop(*m_b[0])
+				# for k in range(len(self.layers)):
+				# 	W_grads.append(self.layers[k].get_W_gradient()*lr/len_m_b)
+				# 	b_grads.append(self.layers[k].get_b_gradient()*lr/len_m_b)
 				self.backprop(*m_b[0])
-				for k in range(len(self.layers)):
-					W_grads.append(self.layers[k].get_W_gradient()*lr/len_m_b)
-					b_grads.append(self.layers[k].get_b_gradient()*lr/len_m_b)
+				for k in range(len(self.inputs),len(self.prop_order)):
+					W_grads[k] = [0]*len(self.prop_order[k].W_grad)
+					b_grads[k] = 0
+					for m in range(len(self.prop_order[k].W_grad)):
+						W_grads[k][m] += self.prop_order[k].W_grad[m]*lr_coef
+					b_grads[k] += self.prop_order[k].b_grad*lr_coef
 
-				# for m in range(len(self.layers)):
+				# for m in range(len(self.prop_order)):
 				# 	print("Weight gradient matrix crontibution nb of layer", m, "in example 0 of the minibatch")
 				# 	print(-W_grads[m])
 				# print("----------------------------------------------")
@@ -371,16 +403,17 @@ class DNN():
 
 				for j in range(1,len(m_b)):
 					self.backprop(*m_b[j])
-					for k in range(len(self.layers)):
-						W_grads[k] += self.layers[k].get_W_gradient()*lr/len_m_b
-						b_grads[k] += self.layers[k].get_b_gradient()*lr/len_m_b
+					for k in range(len(self.inputs),len(self.prop_order)):
+						for m in range(len(self.prop_order[k].W_grad)):
+							W_grads[k][m] += self.prop_order[k].W_grad[m]*lr_coef
+						b_grads[k] += self.prop_order[k].b_grad*lr_coef
 
 				# ---------- 
 
 				# update weights and biases:
-				for k in range(len(self.layers)):
-					self.layers[k].update_b(-b_grads[k])
-					self.layers[k].update_W(-W_grads[k])
+				for k in range(len(self.inputs),len(self.prop_order)):
+					self.prop_order[k].update_b(b_grads[k])
+					self.prop_order[k].update_W(W_grads[k])
 
 			lr *= dec_rate
 			# print("Mean output during epoch", i+1,":", out_1)
@@ -432,42 +465,38 @@ if __name__ == '__main__':
 
 	nn = DNN()
 
-	cero = Input(5, "0")
-	uno = Input(10, "1")
+	x_y = Input(2, "x_y")
+	z = Input(1, "z")
 
-	dos = Fully_Connected(2, "2")
-	tres = Fully_Connected(3, "3")
-	cuatro = Fully_Connected(4, "4")
-	cinco = Fully_Connected(5, "5")
-	seis = Fully_Connected(6, "6")
-	siete = Fully_Connected(7, "7")
+	def func(x,y,z):
+		return math.sin((z**2)/((x**3)+(y**3))**1/4)**2
 
-	cero.addNext(tres)
+	h1 = Fully_Connected(50, "relu", "h1")
+	h2 = Fully_Connected(50, "relu", "h2")
+	h3 = Fully_Connected(90, "relu", "h3")
+	h4 = Fully_Connected(90, "relu", "h4")
+	ou = Fully_Connected(2, "softmax", "output")
 
-	uno.addNext(cinco)
-	uno.addNext(dos)
-	uno.addNext(tres)
-	uno.addNext(cuatro)
+	x_y.addNext(h1)
+	z.addNext(h2)
+	h1.addNext(h3)
+	h2.addNext(h3)
+	h3.addNext(h4)
+	h4.addNext(ou)
+	
 
-	dos.addNext(cinco)
-	tres.addNext(cinco)
-	cuatro.addNext(seis)
-	cuatro.addNext(siete)
-
-	cinco.addNext(siete)
-	seis.addNext(siete)
-
-	nn.add_inputs(uno)
-	nn.add_inputs(cero)
+	nn.add_inputs(x_y)
+	nn.add_inputs(z)
 
 	nn.initialize()
 
-	inp = np.asarray([[6],[7],[8],[9],[10],[1],[2],[3],[4],[5]])
-	inp2 = np.asarray([[1],[2],[3],[4],[5]])
-	print("inp:", (inp.shape, inp2.shape))
-	ems = nn.prop([inp, inp2])
-	print("out:", [em.shape for em in ems])
-	print(ems)
+	# inp = np.asarray([[6],[7],[8],[9],[10],[1],[2],[3],[4],[5]])
+	# inp2 = np.asarray([[1],[2],[3],[4],[5]])
+	# print("inp:", (inp.shape, inp2.shape))
+	# nn.prop([inp, inp2])
+	# em = nn.get_Output()
+	# print("out:", em.shape)
+	# print(em)
 
 	# import time
 
@@ -478,33 +507,51 @@ if __name__ == '__main__':
 	# 		   Fully_Connected_Layer(50,2, "softmax")])
 
 
-	# ### generate some data...
+	### generate some data...
 
-	# training_data = []
+	training_data = []
 
 
-	# for i in range(20000):
-	# 	x = random.random()
-	# 	training_data.append((np.asarray([[x]]), np.asarray([[ math.sin(x)**2 ], [ math.cos(x)**2 ]] )))
+	for i in range(20000):
+		x = random.random()
+		y = random.random()
+		z = random.random()
+		training_data.append(
+			(
+				[ np.asarray([[x], [y]]) , np.asarray([[z]]) ],
+				np.asarray([[ func(x,y,z) ], [ 1 - func(x,y,z) ]])
+			)
+		)
+	print("gonna train, holly shit I'm nervous")
 
-	# print("gonna train, holly shit I'm nervous")
+	start = time.clock()
 
-	# start = time.clock()
+	nn.SGD(training_data, 128, 10, 0.005, 0.005)
 
-	# dnn.SGD(training_data, 128, 4, 0.005, 0.0005)
+	end = time.clock()
+	interval_c = end-start
+	print("Time training: %.2gs" % interval_c)
 
-	# end = time.clock()
-	# interval_c = end-start
-	# print("Time training: %.2gs" % interval_c)
 
-	# print("let's compute x = 0.3")
-	# print(dnn.prop(np.asarray([[0.3]])))
+	for i in range(3):
+		x = random.random()
+		y = random.random()
+		z = random.random()
+		inp = [ np.asarray([[x], [y]]) , np.asarray([[z]])]
+		em = np.asarray([[ func(x,y,z) ], [ 1 - func(x,y,z) ]])
+		print("input:", inp)
+		print("expected:", em)
+		print("output:", nn.prop(inp))
 
-	# print("let's compute x = 0.51")
-	# print(dnn.prop(np.asarray([[0.51]])))
 
-	# print("let's compute x = 0.9")
-	# print(dnn.prop(np.asarray([[0.9]])))
+	# print("let's compute  sin(x = 0.3)**2 = 0.087")
+	# print(nn.prop([np.asarray([[0.3]])]))
+
+	# print("let's compute sin(x = 0.51)**2 = 0.238")
+	# print(nn.prop([np.asarray([[0.51]])]))
+
+	# print("let's compute sin(x = 0.9)**2 = 0.614")
+	# print(nn.prop([np.asarray([[0.9]])]))
 
 
 

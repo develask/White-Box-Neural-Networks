@@ -55,6 +55,8 @@ class Layer:
 		self.prev = []
 		self.initialize_done = False
 		self.name = name
+		self.a = None
+		self.error = None
 
 	def addNext(self, layer):
 		self.next.append(layer)
@@ -66,24 +68,33 @@ class Layer:
 	def get_Output(self):
 		return self.a
 
+	def get_error(self):
+		return self.error
+
+	def get_b_grad(self):
+		return self.b_grad
+
+	def get_W_grad(self):
+		return self.W_grad
+
 	def set_loss_error(self, loss_gradient):
 		# this function will be used in the first step of the BP., when the error is set from 
 		# the cost function (in supervised learning)
-		self.error = loss_gradient * self.act_f.derivative_ff(self.a)
+		self.error = loss_gradient * self.act_f.derivative_ff(self.get_Output())
 		#self.error = loss_gradient * self.act_f.derivative(self.z)
 
 	def backprop_error(self):
 		wt_d = 0
 		for layer in self.next:
-			wt_d += np.dot(np.transpose(layer.W_of_layer(self)), layer.error)
-		self.error = wt_d * self.act_f.derivative_ff(self.a)
+			wt_d += np.dot(np.transpose(layer.W_of_layer(self)), layer.get_error())
+		self.error = wt_d * self.act_f.derivative_ff(self.get_Output())
 
 	def compute_gradients(self):
-		self.b_grad = self.error
-		self.W_grad = [np.dot(self.error, np.transpose(l.get_Output())) for l in self.prev]
+		self.b_grad = self.get_error()
+		self.W_grad = [np.dot(self.b_grad, np.transpose(l.get_Output())) for l in self.prev]
 
 	def calculate_derivate_ff(self):
-		return self.act_f.derivative_ff(self.a)
+		return self.act_f.derivative_ff(self.get_Output())
 
 	def update_W(self, increments):
 		for i in range(len(increments)):
@@ -291,7 +302,7 @@ class DNN():
 		for layer in self.prop_order:
 			layer.initialize()
 			if len(layer.next) == 0:
-					self.output_layer = layer
+				self.output_layer = layer
 		#self.changeToList()
 
 	def add_inputs(self, layer):
@@ -300,12 +311,15 @@ class DNN():
 	def get_Output(self):
 		return self.output_layer.get_Output()
 
+	def get_error(self):
+		return self.output_layer.get_error()
+
 	def prop(self, inp):
 		return [layer.prop(inp.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1]
 
 	def backprop(self, inp, desired_output):
 		# print(desired_output)
-		layer_outputs = self.prop(inp.copy())
+		self.prop(inp.copy())
 
 		#layer_dervs = [l.calculate_derivate_ff() for l in self.prop_order]
 		#layer_Ws = [(l.W, l.next_dim, l.next) for l in self.prop_order]
@@ -389,11 +403,11 @@ class DNN():
 				# 	b_grads.append(self.layers[k].get_b_gradient()*lr/len_m_b)
 				self.backprop(*m_b[0])
 				for k in range(len(self.inputs),len(self.prop_order)):
-					W_grads[k] = [0]*len(self.prop_order[k].W_grad)
+					W_grads[k] = [0]*len(self.prop_order[k].get_W_grad())
 					b_grads[k] = 0
-					for m in range(len(self.prop_order[k].W_grad)):
-						W_grads[k][m] += self.prop_order[k].W_grad[m]*lr_coef
-					b_grads[k] += self.prop_order[k].b_grad*lr_coef
+					for m in range(len(self.prop_order[k].get_W_grad())):
+						W_grads[k][m] += self.prop_order[k].get_W_grad()[m]*lr_coef
+					b_grads[k] += self.prop_order[k].get_b_grad()*lr_coef
 
 				# for m in range(len(self.prop_order)):
 				# 	print("Weight gradient matrix crontibution nb of layer", m, "in example 0 of the minibatch")
@@ -404,9 +418,9 @@ class DNN():
 				for j in range(1,len(m_b)):
 					self.backprop(*m_b[j])
 					for k in range(len(self.inputs),len(self.prop_order)):
-						for m in range(len(self.prop_order[k].W_grad)):
-							W_grads[k][m] += self.prop_order[k].W_grad[m]*lr_coef
-						b_grads[k] += self.prop_order[k].b_grad*lr_coef
+						for m in range(len(self.prop_order[k].get_W_grad())):
+							W_grads[k][m] += self.prop_order[k].get_W_grad()[m]*lr_coef
+						b_grads[k] += self.prop_order[k].get_b_grad()*lr_coef
 
 				# ---------- 
 

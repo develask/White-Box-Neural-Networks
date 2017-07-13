@@ -57,6 +57,8 @@ class Layer:
 		self.name = name
 		self.a = None
 		self.error = None
+		self.b_grad = None
+		self.W_grad = None
 
 	def addNext(self, layer):
 		self.next.append(layer)
@@ -65,7 +67,7 @@ class Layer:
 	def get_Input_dim(self):
 		return sum(map(lambda l: l.get_Output_dim(), self.prev))
 
-	def get_Output(self):
+	def get_Output(self, *args, **kargs):
 		return self.a
 
 	def get_error(self):
@@ -138,8 +140,7 @@ class Fully_Connected(Layer):
 		return self.output_dim
 
 	def initialize(self):
-		self.W = [
-			np.random.normal(scale=1 ,size=(self.output_dim, l.get_Output_dim())) for l in self.prev]
+		self.W = [np.random.normal(scale=1 ,size=(self.output_dim, l.get_Output_dim())) for l in self.prev]
 		self.b = np.zeros((self.output_dim, 1))
 		self.initialize_done = True
 
@@ -156,90 +157,6 @@ class Fully_Connected(Layer):
 		self.a = self.act_f.ff(self.z)
 		return self.a
 
-
-
-
-class Fully_Connected_Layer():
-	def __init__(self, input_dim, output_dim, activation_function):
-		'''
-		input_dim: input dimension of the layer
-		output_dim: output dimension of the layer
-		activation_function: string to select an activation function, e.g. "sigmoid"
-		'''
-
-		'''
-		W is a output_dim x input_dim matrix, so w_ij corresponds to the weight
-		between the j_th neuron in the input to the i_th neuron in the output
-		b is the bias vector
-		act_f refers to the selected activation function
-
-		z is the input to the activation during the propagation stage
-		a is the output of the activation during the propagation stage
-
-		error is the backprop error in this layer
-		'''
-
-		self.W = np.random.normal(scale=1 ,size=(output_dim, input_dim))
-		#self.W = np.zeros((output_dim, input_dim))
-		self.b = np.zeros((output_dim, 1))
-		self.act_f = Activation_Function(activation_function)
-
-		self.z = np.zeros((output_dim,1))
-		self.a = np.zeros((output_dim,1))
-
-		self.error = np.zeros((output_dim,1))
-
-		self.b_grad = np.zeros((output_dim,1))
-		self.W_grad = np.zeros((output_dim,input_dim))
-
-	def prop(self, inp):
-		'''
-		inp is assumed to be of shape (inp_shape, 1)
-		'''
-		self.z = np.dot(self.W, inp) + self.b
-		self.a = self.act_f.ff(self.z)
-		return self.a
-
-	def get_b(self):
-		return self.b
-
-	def get_W(self):
-		return self.W
-
-	def get_z_during_prop(self):
-		return self.z
-
-	def get_a_during_prop(self):
-		return self.a
-
-	def get_error(self):
-		return self.error
-
-	def backprop_error(self, W_next_layer, error_next_layer):
-		self.error = np.dot(np.transpose(W_next_layer), error_next_layer) * self.act_f.derivative_ff(self.a)
-
-	def set_loss_error(self, loss_gradient):
-		# this function will be used in the first step of the BP., when the error is set from 
-		# the cost function (in supervised learning)
-		self.error = loss_gradient * self.act_f.derivative_ff(self.a)
-		#self.error = loss_gradient * self.act_f.derivative(self.z)
-
-	def compute_gradients(self, inp):
-		#inp is a^{l-1}
-		self.b_grad = self.error
-		self.W_grad = np.dot(self.error, np.transpose(inp))
-
-	def get_W_gradient(self):
-		return self.W_grad
-
-	def get_b_gradient(self):
-		return self.b_grad
-
-	def update_W(self, increment):
-		self.W += increment
-
-	def update_b(self, increment):
-		self.b += increment
 
 # l = Fully_Connected_Layer(3,4, "relu")
 # k = l.prop(np.array([[1],[2],[3]]))
@@ -282,7 +199,7 @@ class DNN():
 		while i < len(self.prop_order):
 			layer = self.prop_order[i]
 			for l in layer.next:
-				if sum(map(lambda l_: not l_ in self.prop_order, l.prev)) == 0 and not l in self.prop_order:
+				if sum(map(lambda l_: not l_ in self.prop_order and not l_ is l, l.prev)) == 0 and not l in self.prop_order:
 					self.prop_order.append(l)
 			i+=1
 

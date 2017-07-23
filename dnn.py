@@ -2,16 +2,26 @@ import numpy as np
 import random
 import math
 import time
-from functools import reduce
+
+# print(dir(dnn))
 
 
 class Activation_Function():
 	def __init__(self, name):
 		self.name = name
 		if self.name == "sigmoid":
-			self.ff = lambda z: 1 / (1 + np.exp(-z))
-			self.derivate = lambda z: np.exp(-z)/(1+np.exp(-z))**2
-			self.derivative_ff = lambda a: a*(1-a)
+			def ff_(z):
+				return 1 / (1 + np.exp(-z))
+			#self.ff = lambda z: 1 / (1 + np.exp(-z))
+			self.ff = ff_
+			def derivate_(z):
+				return np.exp(-z)/(1+np.exp(-z))**2
+			# self.derivate = lambda z: np.exp(-z)/(1+np.exp(-z))**2
+			self.derivate = derivate_
+			def derivative_ff_(a):
+				return a*(1-a)
+			# self.derivative_ff = lambda a: a*(1-a)
+			self.derivative_ff = derivative_ff_
 
 
 		elif self.name == "softmax":
@@ -25,94 +35,136 @@ class Activation_Function():
 				div = exp / suma
 				return div - div**2
 			self.derivate = derivate_
-			self.derivative_ff = lambda a: a - a**2
+			def derivative_ff_(a):
+				return a*(1-a)
+			# self.derivative_ff = lambda a: a - a**2
+			self.derivative_ff = derivative_ff_
 
-		elif self.name == "relu":
-			self.ff = lambda z: np.maximum(z, 0)
-			self.derivate = lambda z: (np.sign(z)+1)/2
-			self.derivative_ff = lambda a: np.sign(a)
+		# elif self.name == "relu":
+		# 	self.ff = lambda z: np.maximum(z, 0)
+		# 	self.derivate = lambda z: (np.sign(z)+1)/2
+		# 	self.derivative_ff = lambda a: np.sign(a)
 
-		elif self.name == "linear":
-			self.ff = lambda z: z
-			self.derivate = lambda z: np.full(z.shape, 1)
-			self.derivative_ff = lambda a: a/a
+		# elif self.name == "linear":
+		# 	self.ff = lambda z: z
+		# 	self.derivate = lambda z: np.full(z.shape, 1)
+		# 	self.derivative_ff = lambda a: np.full(a.shape, 1)
 		else:
 			raise ValueError("Not defined activation function")
-
-	# def ff(self, z):
-	# 	return self.ff_(z)
-
-	# def derivative(self, z):
-	# 	return self.derivate_(z)
-
-	# def derivative_ff(self, a):
-	# 	# compute the derivative in function of the ff function, the activation
-	# 	return self.derivative_ff_(a)
 
 class Layer:
 	def __init__(self, name):
 		self.next = []
 		self.prev = []
+		self.next_rercurrent = []
+		self.prev_recurrent = []
 		self.initialize_done = False
 		self.name = name
 		self.a = None
 		self.error = None
 		self.b_grad = None
 		self.W_grad = None
+		self.is_in_recurrent_part = False
 
 	def addNext(self, layer):
 		self.next.append(layer)
-		layer.prev.append(self)
+		layer.__addPrev__(self)
 
-	def get_Input_dim(self):
-		return sum(map(lambda l: l.get_Output_dim(), self.prev))
+	def addNextRecurrent(self, layer):
+		self.next_rercurrent.append(layer)
+		layer.__addPrevRecurrent__(self)
 
-	def get_Output(self, *args, **kargs):
-		return self.a
+	def __addPrev__(self, layer):
+		self.prev.append(layer)
 
-	def get_error(self):
-		return self.error
+	def __addPrevRecurrent__(self, layer):
+		self.prev_recurrent.append(layer)
 
-	def get_b_grad(self):
-		return self.b_grad
+	def set_in_recurrent_part(self, par = False):
+		self.is_in_recurrent_part = par
 
-	def get_W_grad(self):
-		return self.W_grad
+	def get_in_recurrent_part(self):
+		return self.is_in_recurrent_part
+
+	def get_Output(self, t=0):
+		return self.a[t-1]
+
+	def get_error(self, t=0):
+		return self.error[t-1]
 
 	def set_loss_error(self, loss_gradient):
-		# this function will be used in the first step of the BP., when the error is set from 
-		# the cost function (in supervised learning)
-		self.error = loss_gradient * self.act_f.derivative_ff(self.get_Output())
-		#self.error = loss_gradient * self.act_f.derivative(self.z)
+		"""this function will be used in the first step of the BP.,
+		when the error is set from the cost function (in supervised learning)"""
+		self.error = [loss_gradient]
 
-	def backprop_error(self):
-		wt_d = 0
+	def get_error_contribution(self, layer, t=0):
+		return np.dot(
+			np.transpose(self.W_of_layer(layer)),
+			self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
+		)
+	def backprop_error(self,t=0):
+		"""this function will be used during the BP. to calculate the error"""
+		aux = 0
+		if t != 0:
+			for layer in self.next_rercurrent:
+				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			wt_d += np.dot(np.transpose(layer.W_of_layer(self)), layer.get_error())
-		self.error = wt_d * self.act_f.derivative_ff(self.get_Output())
+			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+				aux += layer.get_error_contribution(self, t=t)
+		self.error = [aux]+self.error
+
+	def reset_grads(self):
+		self.b_grad = 0
+		self.W_grad = [0]*(len(self.prev)+len(self.prev_recurrent))
 
 	def compute_gradients(self):
-		self.b_grad = self.get_error()
-		self.W_grad = [np.dot(self.b_grad, np.transpose(l.get_Output())) for l in self.prev]
+		num_t = len(self.error)
+		b_grad_aux = 0
+		W_grad_aux = [0]*len(self.W_grad)
+		for t in range(0,-num_t, -1):
+			aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
+			b_grad_aux += aux
+			W_grad_aux = list(map(lambda x,y: x+y,
+				W_grad_aux,
+				[np.dot(aux, np.transpose(l.get_Output(t=t-1))) for l in self.prev_recurrent] +
+				[np.dot(aux, np.transpose(l.get_Output(t=t))) for l in self.prev]
+			))
+		self.b_grad += b_grad_aux/num_t
+		self.W_grad = list(map(lambda x,y: x+y/num_t,
+				self.W_grad, W_grad_aux
+		))
 
-	def calculate_derivate_ff(self):
-		return self.act_f.derivative_ff(self.get_Output())
 
-	def update_W(self, increments):
-		for i in range(len(increments)):
-			self.W[i] -= increments[i]
+	def apply_to_gradients(self, func):
+		self.b_grad = func(self.b_grad)
+		self.W_grad = list(map(func, self.W_grad))
 
-	def update_b(self, increment):
-		self.b -= increment
+	def update(self):
+		self.update_b()
+		self.update_W()
+
+	def update_W(self):
+		for i in range(len(self.W_grad)):
+			self.W[i] -= self.W_grad[i]
+
+	def update_b(self):
+		self.b -= self.b_grad
 
 	def get_Output_dim(self):
-		raise NotImplementedError( "Should have implemented this" )
+		return self.output_dim
 
 	def initialize(self):
 		raise NotImplementedError( "Should have implemented this" )
 
 	def prop(self, x_labels, proped = []):
 		raise NotImplementedError( "Should have implemented this" )
+
+	def reset(self):
+		if len(self.next_rercurrent)>0:
+			self.a = [np.zeros((self.output_dim,1))]
+		else:
+			self.a = []
+		self.error = []
 
 class Input(Layer):
 	def __init__(self, input_dim, name):
@@ -125,8 +177,11 @@ class Input(Layer):
 	def initialize(self):
 		self.initialize_done = True
 
+	def compute_gradients(self):
+		pass
+
 	def prop(self, x_labels):
-		self.a = x_labels
+		self.a = self.a + [x_labels]
 		return self.a
 
 
@@ -135,32 +190,25 @@ class Fully_Connected(Layer):
 		super(Fully_Connected, self).__init__(name)
 		self.output_dim = output_dim
 		self.act_f = Activation_Function(activation_function)
-		
-	def get_Output_dim(self):
-		return self.output_dim
 
 	def initialize(self):
-		self.W = [np.random.normal(scale=1 ,size=(self.output_dim, l.get_Output_dim())) for l in self.prev]
+		self.W = [np.random.normal(scale=1 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.prev_recurrent + self.prev]
 		self.b = np.zeros((self.output_dim, 1))
 		self.initialize_done = True
 
 	def W_of_layer(self, layer):
-		for i in range(len(self.prev)):
-			if self.prev[i] is layer:
-				return self.W[i]
+		return self.W[(self.prev_recurrent + self.prev).index(layer)]
 
 	def prop(self):
 		inp = 0
-		for i in range(len(self.prev)):
-			inp += np.dot(self.W[i], self.prev[i].get_Output())
+		i = 0
+		for l in self.prev_recurrent + self.prev:
+			inp += np.dot(self.W[i], l.get_Output())
+			i+=1
 		self.z = inp + self.b
-		self.a = self.act_f.ff(self.z)
-		return self.a
-
-
-# l = Fully_Connected_Layer(3,4, "relu")
-# k = l.prop(np.array([[1],[2],[3]]))
-# print(k)
+		out = self.act_f.ff(self.z)
+		self.a = self.a + [out]
+		return out
 
 class Loss():
 	def __init__(self, name):
@@ -188,304 +236,255 @@ class Loss():
 	
 
 class DNN():
-	def __init__(self):
+	def __init__(self, name):
+		self.name = name
 		self.inputs = []
+		self.next = []
+		self.prev = []
+		self.next_rercurrent = []
+		self.prev_recurrent = []
 		self.output_layer = None
 		self.loss = Loss("ce1")
 
 	def calculate_layer_order(self):
+		"""
+		Since DNN object contains a graph representation,
+		this function calculates the propagation order.
+		Using the reverse order, work for backpropagation.
+		"""
+
+		def importing_dnn(nn):
+			# modify conections on next and prev
+			for inp in nn.inputs:
+				l_prev = inp.prev
+				try:
+					idx = l_prev.next.index(nn)
+					l_prev.next[idx:idx+1] = inp.next
+					for l_hidden in inp.next:
+						l_hidden.prev[l_hidden.prev.index(inp)] = l_prev
+				except ValueError:
+					idx = l_prev.next_rercurrent.index(nn)
+					assert idx != -1
+					l_prev.next_rercurrent[idx:idx+1] = inp.next
+					for l_hidden in inp.next:
+						l_hidden.prev_recurrent[l_hidden.prev_recurrent.index(inp)] = l_prev
+			nn.prop_order[-1].next_rercurrent += nn.next_rercurrent
+			for l in nn.next_rercurrent:
+				l.prev_recurrent[l.prev_recurrent.index(nn)] = nn.prop_order[-1]
+			nn.prop_order[-1].next += nn.next
+			for l in nn.next:
+				l.prev[l.prev.index(nn)] = nn.prop_order[-1]
+
 		self.prop_order = self.inputs.copy()
 		i = 0
 		while i < len(self.prop_order):
 			layer = self.prop_order[i]
 			for l in layer.next:
 				if sum(map(lambda l_: not l_ in self.prop_order and not l_ is l, l.prev)) == 0 and not l in self.prop_order:
-					self.prop_order.append(l)
+					to_add = [l]
+					if isinstance(l, DNN):
+						l.calculate_layer_order()
+						importing_dnn(l)
+						to_add = l.prop_order[len(l.inputs):]
+
+					self.prop_order += to_add
 			i+=1
 
-	# def changeToList(self):
-	# 	for layer in self.prop_order:
-	# 		prev = []
-	# 		for l in layer.prev:
-	# 			prev.append(self.prop_order.index(l))
-	# 		layer.prev = prev
-	# 		next = []
-	# 		for l in layer.next:
-	# 			next.append(self.prop_order.index(l))
-	# 		layer.next = next
-
 	def initialize(self):
-		self.calculate_layer_order()
+		"""Initialize each layer, and generate the layer order."""
+		if not hasattr(self, 'prop_order'):
+			self.calculate_layer_order()
 		for layer in self.prop_order:
 			layer.initialize()
 			if len(layer.next) == 0:
 				self.output_layer = layer
-		#self.changeToList()
+
+		found = False
+		for i in range(-1,-len(self.prop_order),-1):
+			if (len(self.prop_order[i].next_rercurrent)>0 or self.prop_order[i].get_in_recurrent_part())and not found:
+				self.last_rec_idx = i
+				found = True
+			self.prop_order[i].set_in_recurrent_part(found)
 
 	def add_inputs(self, layer):
 		self.inputs.append(layer)
 
+	def addNext(self, layer):
+		self.next.append(layer)
+		layer.__addPrev__(self)
+
+	def __addPrev__(self, layer):
+		idx = len(self.prev_recurrent)+len(self.prev)
+		assert idx < len(self.inputs)
+		assert layer.get_Output_dim() == self.inputs[idx].get_Output_dim()
+		self.prev.append(layer)
+		self.inputs[idx].prev = layer
+
+	def addNextRecurrent(self, layer):
+		self.next_rercurrent.append(layer)
+		layer.__addPrevRecurrent__(self)
+
+	def __addPrevRecurrent__(self, layer):
+		idx = len(self.prev_recurrent)+len(self.prev)
+		assert idx < len(self.inputs)
+		assert layer.get_Output_dim() == self.inputs[idx].get_Output_dim()
+		self.prev_recurrent.append(layer)
+		self.inputs[idx].prev = layer
+
 	def get_Output(self):
 		return self.output_layer.get_Output()
 
-	def get_error(self):
-		return self.output_layer.get_error()
-
 	def prop(self, inp):
-		return [layer.prop(inp.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1]
+		for layer in self.prop_order:
+			layer.reset()
+		out = None
+		for inp_t in inp:
+			inp_t_cop = inp_t.copy()
+			out = [layer.prop(inp_t_cop.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1]
+		return out
 
 	def backprop(self, inp, desired_output):
-		# print(desired_output)
-		self.prop(inp.copy())
+		out = self.prop(inp.copy())
 
-		#layer_dervs = [l.calculate_derivate_ff() for l in self.prop_order]
-		#layer_Ws = [(l.W, l.next_dim, l.next) for l in self.prop_order]
+		self.prop_order[-1].set_loss_error(self.loss.grad(self.prop_order[-1].get_Output(t=0), desired_output))
 
-		#errors = [None]*len(layer_dervs)
-		# print(self.loss.grad(self.rev_layers[0].get_a_during_prop(), desired_output))
-		# print(self.loss.ff(self.rev_layers[0].get_a_during_prop(), desired_output))
-
-		# compute the errors
-		self.prop_order[-1].set_loss_error(self.loss.grad(self.prop_order[-1].get_Output(), desired_output))
-		self.prop_order[-1].compute_gradients()
-		# where rev_layers[0].get_a_during_prop is just the output of the DNN for the given inp.
-
-
-		#for i in range(len(self.layers)-, -1, -1):
 		for layer in self.prop_order[-2:len(self.inputs)-1:-1]:
-			if not isinstance(layer, Input):
-				layer.backprop_error()
-				layer.compute_gradients()
-			
+			layer.backprop_error(t=0)
 
-	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end):
-		lr = lr_start
+		for t in range(-1,-len(inp),-1):
+			# We don't have to compute the errors in the output layers until a Recurren layer appears
+			for layer in self.prop_order[self.last_rec_idx:len(self.inputs)-1:-1]:
+				layer.backprop_error(t=t)
+
+		for layer in self.prop_order[:len(self.inputs)-1:-1]:
+			layer.compute_gradients()
+		return out
+
+	def reset_gradients(self):
+		for k in range(len(self.inputs),len(self.prop_order)):
+			self.prop_order[k].reset_grads()
+
+	def apply_to_gradients(self, func):
+		for k in range(len(self.inputs),len(self.prop_order)):
+			self.prop_order[k].apply_to_gradients(func)
+
+	def get_minibach_grad(self, mini_batch):
+		loss = 0
+		len_m_b = len(mini_batch)
+
+		self.reset_gradients()
+
+		for j in range(len(mini_batch)):
+			out = self.backprop(*mini_batch[j])
+			# print(j,":", out, mini_batch[j][1])
+			loss += self.loss.ff(out,mini_batch[j][1])
+
+		# Normalizar los gradientes
+		self.apply_to_gradients(lambda grad: grad/len_m_b)
+
+		return loss
+
+	def update_model(self):
+		self.apply_to_gradients(lambda x: x*self.lr)
+		for k in range(len(self.inputs),len(self.prop_order)):
+			self.prop_order[k].update()
+
+	def get_loss_of_data(self, data):
+		loss = 0
+		len_tr = len(data)
+		for ex in data:
+			out = self.prop(ex[0].copy())
+			loss += self.loss.ff(out,ex[1])
+		return loss[0]/len_tr
+
+	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end):
+		self.lr = lr_start
 		dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
-		W_grads = []
-		b_grads = []
 		len_tr = len(training_data)
 
-		# def porLayer(w_b_layer):
-		# 	w = w_b_layer[0] + w_b_layer[2].get_W_gradient()
-		# 	b = w_b_layer[1] + w_b_layer[2].get_b_gradient()
-		# 	return (w, b)
-
-		# def porEjemplo(W_b, ex):
-		# 	self.backprop(*ex)
-		# 	return list(zip(*map(porLayer, zip(W_b[0], W_b[1], self.layers))))
-
 		for i in range(nb_epochs):
-			#------------------
 			loss = 0
-			#out_1 = 0
-			for ex in training_data:
-				out = self.prop(ex[0].copy())
-				loss += self.loss.ff(out,ex[1])/len_tr
-				#out_1 += out[0][0]/len_tr
 
-			print("training loss", loss[0])
-			#------------------
 			random.shuffle(training_data)
 			mini_batches = [ training_data[ k:k+batch_size ] for k in range(0, len_tr, batch_size)]
 			
 			for m_b in mini_batches:
-				# update the DNN according to this mini batch
+				loss_m_b = self.get_minibach_grad(m_b)
+				loss += loss_m_b
+				self.update_model()
 
-				# compute the errors and gradients per example
+			print(i+1,"training loss:", loss[0]/len_tr)
+			print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
+			self.lr *= dec_rate
 
-				# --------
-
-				# W_grads = [0]* len(self.layers)
-				# b_grads = [0]* len(self.layers)
-
-
-				# W_grads, b_grads = reduce(porEjemplo, m_b, (W_grads, b_grads))
-
-
-				# W_grads = list(map(lambda w: w*lr/len_tr, W_grads))
-				# b_grads = list(map(lambda b: b*lr/len_tr, b_grads))
-
-
-				# -------
-
-
-				len_m_b = len(m_b)
-				W_grads = [None] * len(self.prop_order) 
-				b_grads = [None] * len(self.prop_order)
-				lr_coef = lr/len_m_b
-
-				# self.backprop(*m_b[0])
-				# for k in range(len(self.layers)):
-				# 	W_grads.append(self.layers[k].get_W_gradient()*lr/len_m_b)
-				# 	b_grads.append(self.layers[k].get_b_gradient()*lr/len_m_b)
-				self.backprop(*m_b[0])
-				for k in range(len(self.inputs),len(self.prop_order)):
-					W_grads[k] = [0]*len(self.prop_order[k].get_W_grad())
-					b_grads[k] = 0
-					for m in range(len(self.prop_order[k].get_W_grad())):
-						W_grads[k][m] += self.prop_order[k].get_W_grad()[m]*lr_coef
-					b_grads[k] += self.prop_order[k].get_b_grad()*lr_coef
-
-				# for m in range(len(self.prop_order)):
-				# 	print("Weight gradient matrix crontibution nb of layer", m, "in example 0 of the minibatch")
-				# 	print(-W_grads[m])
-				# print("----------------------------------------------")
-
-
-				for j in range(1,len(m_b)):
-					self.backprop(*m_b[j])
-					for k in range(len(self.inputs),len(self.prop_order)):
-						for m in range(len(self.prop_order[k].get_W_grad())):
-							W_grads[k][m] += self.prop_order[k].get_W_grad()[m]*lr_coef
-						b_grads[k] += self.prop_order[k].get_b_grad()*lr_coef
-
-				# ---------- 
-
-				# update weights and biases:
-				for k in range(len(self.inputs),len(self.prop_order)):
-					self.prop_order[k].update_b(b_grads[k])
-					self.prop_order[k].update_W(W_grads[k])
-
-			lr *= dec_rate
-			# print("Mean output during epoch", i+1,":", out_1)
-			# print("------------------------------------------")
-			
-
-
-			# for i in range(len(self.layers)):
-			# 	print("Weight matrix of layer nb", i)
-			# 	print(self.layers[i].get_W())
-			# print("----------------------------------------------")
-			# for i in range(len(self.layers)):
-			# 	print("Bias matrix of layer nb", i)
-			# 	print(self.layers[i].get_b())
-			# print("----------------------------------------------")
-
-			# for i in range(len(self.layers)):
-			# 	print("Last Weight gradient matrix during training of layer nb", i)
-			# 	print(-W_grads[i])
-			# print("----------------------------------------------")	
-			# for i in range(len(self.layers)):
-			# 	print("Last outputs of layer nb", i)
-			# 	print(self.layers[i].get_a_during_prop())
-			# print("----------------------------------------------")	
-			# for i in range(len(self.layers)):
-			# 	print("Last z of layer nb", i)
-			# 	print(self.layers[i].get_a_during_prop())
-			# print("----------------------------------------------")	
-
-		# for i in range(len(self.layers)):
-		# 	print("Weight matrix of layer nb", i)
-		# 	print(self.layers[i].get_W())
-		# print("----------------------------------------------")
-		# for i in range(len(self.layers)):
-		# 	print("Bias matrix of layer nb", i)
-		# 	print(self.layers[i].get_b())
-		# print("----------------------------------------------")
-
-
-					
-
-
-
-			#apply_lr_schedule(learning_rate, i)
-
-
+		print("final training loss:", self.get_loss_of_data(training_data))
+		print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
 
 if __name__ == '__main__':
-
-	nn = DNN()
-
-	x_y = Input(2, "x_y")
-	z = Input(1, "z")
-
-	def func(x,y,z):
-		return math.sin((z**2)/((x**3)+(y**3))**1/4)**2
-
-	h1 = Fully_Connected(50, "relu", "h1")
-	h2 = Fully_Connected(50, "relu", "h2")
-	h3 = Fully_Connected(90, "relu", "h3")
-	h4 = Fully_Connected(90, "relu", "h4")
-	ou = Fully_Connected(2, "softmax", "output")
-
-	x_y.addNext(h1)
-	z.addNext(h2)
-	h1.addNext(h3)
-	h2.addNext(h3)
-	h3.addNext(h4)
-	h4.addNext(ou)
+	import random
+	import math
+	import time
 	
+	nn = DNN("recurrente")
 
-	nn.add_inputs(x_y)
-	nn.add_inputs(z)
+	x = Input(1, "x")
+
+	def func(x):
+		return math.sin(sum([a[0] for a in x]))**2
+
+	R1 = Fully_Connected(100, "sigmoid", "r1")
+	R2 = Fully_Connected(100, "sigmoid", "r2")
+	R3 = Fully_Connected(100, "sigmoid", "r3")
+
+	ff = Fully_Connected(1, "sigmoid", "ff2")
+
+
+	x.addNext(R1)
+	R1.addNext(R2)
+	R2.addNext(R3)
+	R3.addNext(ff)
+
+	R1.addNextRecurrent(R1)
+	R2.addNextRecurrent(R2)
+	R3.addNextRecurrent(R3)
+
+	nn.add_inputs(x)
 
 	nn.initialize()
-
-	# inp = np.asarray([[6],[7],[8],[9],[10],[1],[2],[3],[4],[5]])
-	# inp2 = np.asarray([[1],[2],[3],[4],[5]])
-	# print("inp:", (inp.shape, inp2.shape))
-	# nn.prop([inp, inp2])
-	# em = nn.get_Output()
-	# print("out:", em.shape)
-	# print(em)
-
-	# import time
-
-	# dnn = DNN([Fully_Connected_Layer(1,50, "sigmoid"),
-	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
-	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
-	# 		   Fully_Connected_Layer(50,50, "sigmoid"),
-	# 		   Fully_Connected_Layer(50,2, "softmax")])
-
-
-	### generate some data...
-
 	training_data = []
 
 
 	for i in range(20000):
-		x = random.random()
-		y = random.random()
-		z = random.random()
+		x = []
+		for i2 in range(random.randint(3,3)):
+			rr = random.random()
+			x.append( [ np.asarray([[rr]]) ] )
 		training_data.append(
 			(
-				[ np.asarray([[x], [y]]) , np.asarray([[z]]) ],
-				np.asarray([[ func(x,y,z) ], [ 1 - func(x,y,z) ]])
+				x,
+				np.asarray([[ func(x) ]])
 			)
 		)
 	print("gonna train, holly shit I'm nervous")
 
 	start = time.clock()
 
-	nn.SGD(training_data, 128, 10, 0.005, 0.005)
+	nn.SGD(training_data[500:], training_data[:500], 128, 10, 0.05, 0.005)
 
 	end = time.clock()
 	interval_c = end-start
 	print("Time training: %.2gs" % interval_c)
 
+	for i in range(10):
+		x = []
+		for i2 in range(random.randint(3,3)):
+			rr = random.random()
+			x.append( [ np.asarray([[rr]]) ] )
+		inp = x
 
-	for i in range(3):
-		x = random.random()
-		y = random.random()
-		z = random.random()
-		inp = [ np.asarray([[x], [y]]) , np.asarray([[z]])]
-		em = np.asarray([[ func(x,y,z) ], [ 1 - func(x,y,z) ]])
-		print("input:", inp)
+		em = func(x)
+
+		print("-----------------------")
+		#print("input:", inp)
 		print("expected:", em)
 		print("output:", nn.prop(inp))
-
-
-	# print("let's compute  sin(x = 0.3)**2 = 0.087")
-	# print(nn.prop([np.asarray([[0.3]])]))
-
-	# print("let's compute sin(x = 0.51)**2 = 0.238")
-	# print(nn.prop([np.asarray([[0.51]])]))
-
-	# print("let's compute sin(x = 0.9)**2 = 0.614")
-	# print(nn.prop([np.asarray([[0.9]])]))
-
-
-
-
-
-

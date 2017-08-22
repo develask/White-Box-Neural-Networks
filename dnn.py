@@ -131,20 +131,20 @@ class DNN():
 		self.prev_recurrent.append(layer)
 		self.inputs[idx].prev = layer
 
-	def get_Output(self):
-		return self.output_layer.get_Output()
+	def get_Output(self, t=0):
+		return self.output_layer.get_Output(t=t)
 
 	def prop(self, inp):
 		for layer in self.prop_order:
 			layer.reset()
-		out = None
+		out = []
 		for inp_t in inp:
 			inp_t_cop = inp_t.copy()
-			out = [layer.prop(inp_t_cop.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1]
+			out.append([layer.prop(inp_t_cop.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1])
 		return out
 
 	def backprop(self, inp, desired_output):
-		out = self.prop(inp.copy())
+		out = self.prop(inp.copy())[-1]
 
 		self.prop_order[-1].set_loss_error(self.loss.grad(self.prop_order[-1].get_Output(t=0), desired_output))
 
@@ -194,7 +194,7 @@ class DNN():
 		len_tr = len(data)
 		for ex in data:
 			out = self.prop(ex[0].copy())
-			loss += self.loss.ff(out,ex[1])
+			loss += self.loss.ff(out[-1],ex[1])
 		return loss[0]/len_tr
 
 	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end):
@@ -216,6 +216,8 @@ class DNN():
 			print(i+1,"training loss:", loss[0]/len_tr)
 			print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
 			self.lr *= dec_rate
+
+			#self.save(self.name+"_ep_"+str(i) + "_%Y-%m-%d_%H-%M")
 
 		print("final training loss:", self.get_loss_of_data(training_data))
 		print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
@@ -264,6 +266,8 @@ if __name__ == '__main__':
 	import random
 	import math
 	import time
+
+	from layers import Fully_Connected, LSTM
 	
 	nn = DNN("recurrente")
 
@@ -272,18 +276,11 @@ if __name__ == '__main__':
 	def func(x):
 		return math.sin(sum([a[0] for a in x]))**2
 
-	R1 = Fully_Connected(100, "sigmoid", "r1")
-	R2 = Fully_Connected(100, "sigmoid", "r2")
-	R3 = Fully_Connected(100, "sigmoid", "r3")
+	R1 = LSTM(100, "r1")
+	R2 = LSTM(100, "r2")
+	R3 = LSTM(100, "r3")
 
 	ff = Fully_Connected(1, "sigmoid", "ff2")
-
-	x.save()
-	R1.save()
-	R2.save()
-	R3.save()
-	ff.save()
-	quit()
 
 
 	x.addNext(R1)
@@ -291,13 +288,15 @@ if __name__ == '__main__':
 	R2.addNext(R3)
 	R3.addNext(ff)
 
-	R1.addNextRecurrent(R1)
-	R2.addNextRecurrent(R2)
-	R3.addNextRecurrent(R3)
+
+	# R1.addNextRecurrent(R1)
+	# R2.addNextRecurrent(R2)
+	# R3.addNextRecurrent(R3)
 
 	nn.add_inputs(x)
 
 	nn.initialize()
+	print("kk",R3.w_i_ctprev[0], R3.b_f[0])
 	training_data = []
 
 
@@ -316,7 +315,8 @@ if __name__ == '__main__':
 
 	start = time.clock()
 
-	nn.SGD(training_data[500:], training_data[:500], 128, 10, 0.05, 0.005)
+	nn.SGD(training_data[500:], training_data[:500], 128, 10, 0.5, 0.05)
+	print("kk",R1.w_i_ctprev[0], R1.b_f[0])
 
 	end = time.clock()
 	interval_c = end-start
@@ -334,4 +334,4 @@ if __name__ == '__main__':
 		print("-----------------------")
 		#print("input:", inp)
 		print("expected:", em)
-		print("output:", nn.prop(inp))
+		print("output:", nn.prop(inp)[-1])

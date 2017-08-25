@@ -197,7 +197,7 @@ class DNN():
 			loss += self.loss.ff(out[-1],ex[1])
 		return loss[0]/len_tr
 
-	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end):
+	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end, func = None):
 		self.lr = lr_start
 		dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
 		len_tr = len(training_data)
@@ -214,7 +214,10 @@ class DNN():
 				self.update_model()
 
 			print(i+1,"training loss:", loss[0]/len_tr)
-			print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
+			val_loss = self.get_loss_of_data(validation_data)
+			print("\t\-> validation loss:", val_loss)
+			if func is not None:
+				func(i, loss[0]/len_tr, val_loss, self.lr)
 			self.lr *= dec_rate
 
 			#self.save(self.name+"_ep_"+str(i) + "_%Y-%m-%d_%H-%M")

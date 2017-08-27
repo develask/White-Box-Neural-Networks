@@ -36,15 +36,15 @@ class Activation_Function():
 			# self.derivative_ff = lambda a: a - a**2
 			self.derivative_ff = derivative_ff_
 
-		# elif self.name == "relu":
-		# 	self.ff = lambda z: np.maximum(z, 0)
-		# 	self.derivate = lambda z: (np.sign(z)+1)/2
-		# 	self.derivative_ff = lambda a: np.sign(a)
+		elif self.name == "relu":
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivate = lambda z: (np.sign(z)+1)/2
+			self.derivative_ff = lambda a: np.sign(a)
 
-		# elif self.name == "linear":
-		# 	self.ff = lambda z: z
-		# 	self.derivate = lambda z: np.full(z.shape, 1)
-		# 	self.derivative_ff = lambda a: np.full(a.shape, 1)
+		elif self.name == "linear":
+			self.ff = lambda z: z
+			self.derivate = lambda z: np.full(z.shape, 1)
+			self.derivative_ff = lambda a: np.full(a.shape, 1)
 		else:
 			raise ValueError("Not defined activation function")
 

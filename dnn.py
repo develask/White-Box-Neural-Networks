@@ -226,7 +226,7 @@ class DNN():
 		print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
 
 	def save(self, name = None):
-		dir_ = name if name is not None else time.strftime(self.name + "_%Y-%m-%d_%H-%M")
+		dir_ = time.strftime(name if name is not None else self.name + "_%Y-%m-%d_%H-%M")
 		os.makedirs(dir_)
 		inf = {
 			'prop_order': [id(l) for l in self.prop_order]

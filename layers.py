@@ -208,6 +208,13 @@ class Input(Layer):
 	def initialize(self):
 		self.initialize_done = True
 
+	def reset(self):
+		if len(self.next_rercurrent)>0:
+			self.a = [np.zeros((self.input_dim,1))]
+		else:
+			self.a = []
+		self.error = []
+
 	def compute_gradients(self):
 		pass
 

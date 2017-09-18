@@ -1,2 +1,3 @@
 # White Box Neural Networks
-With this project we pretend to get the knowledge of how different Neural Networks, implementing each of one.
+
+This tookit is the result of two Master thesis, and is still under development. For the moment standard multilayer neural networks have been developed, as well as networks with paralell connections and recurrent neural netoworks, LSTMs included.

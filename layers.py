@@ -23,11 +23,11 @@ class Activation_Function():
 		elif self.name == "softmax":
 			def ff_ (z):
 				exp = np.exp(z)
-				return exp/np.sum(exp)
+				return exp/np.sum(exp, axis=0)
 			self.ff = ff_
 			def derivate_(z):
 				exp = np.exp(z)
-				suma = np.sum(exp)
+				suma = np.sum(exp, axis=0)
 				div = exp / suma
 				return div - div**2
 			self.derivate = derivate_
@@ -118,9 +118,9 @@ class Layer:
 	def prop(self, x_labels, proped = []):
 		raise NotImplementedError( "Should have implemented this" )
 
-	def reset(self):
+	def reset(self, minibatch_size):
 		if len(self.next_rercurrent)>0:
-			self.a = [np.zeros((self.output_dim,1))]
+			self.a = [np.zeros((self.output_dim,minibatch_size))]
 		else:
 			self.a = []
 		self.error = []
@@ -207,13 +207,6 @@ class Input(Layer):
 
 	def initialize(self):
 		self.initialize_done = True
-
-	def reset(self):
-		if len(self.next_rercurrent)>0:
-			self.a = [np.zeros((self.input_dim,1))]
-		else:
-			self.a = []
-		self.error = []
 
 	def compute_gradients(self):
 		pass
@@ -302,7 +295,7 @@ class Fully_Connected(Layer):
 			self.W[i] -= self.W_grad[i]
 
 	def __update_b__(self):
-		self.b -= self.b_grad
+		self.b -= np.sum(self.b_grad, axis=1)[:,np.newaxis]
 
 	def prop(self):
 		inp = 0
@@ -546,14 +539,14 @@ class LSTM(Layer):
 		self.W_c_atprev_grads += W_c_atprev_grads_aux 
 		self.W_o_atprev_grads += W_o_atprev_grads_aux 
 
-		self.w_i_ctprev_grads += w_i_ctprev_grads_aux 
-		self.w_f_ctprev_grads += w_f_ctprev_grads_aux 
-		self.w_o_c_grads += w_o_c_grads_aux 
+		self.w_i_ctprev_grads += np.sum(w_i_ctprev_grads_aux, axis=1)[:,np.newaxis] 
+		self.w_f_ctprev_grads += np.sum(w_f_ctprev_grads_aux, axis=1)[:,np.newaxis]
+		self.w_o_c_grads += np.sum(w_o_c_grads_aux, axis=1)[:,np.newaxis]
 
-		self.b_i_grads += b_i_grads_aux 
-		self.b_f_grads += b_f_grads_aux 
-		self.b_c_grads += b_c_grads_aux 
-		self.b_o_grads += b_o_grads_aux 
+		self.b_i_grads += np.sum(b_i_grads_aux, axis=1)[:,np.newaxis]
+		self.b_f_grads += np.sum(b_f_grads_aux, axis=1)[:,np.newaxis]
+		self.b_c_grads += np.sum(b_c_grads_aux, axis=1)[:,np.newaxis]
+		self.b_o_grads += np.sum(b_o_grads_aux, axis=1)[:,np.newaxis]
 
 	def apply_to_gradients(self, func):
 		self.W_i_alprevs_grads = list(map(func, self.W_i_alprevs_grads))
@@ -602,24 +595,24 @@ class LSTM(Layer):
 	def initialize(self):
 		self.layers = self.prev_recurrent + self.prev
 
-		self.W_i_alprevs = [np.random.normal(scale=1 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
-		self.W_f_alprevs = [np.random.normal(scale=1 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
-		self.W_c_alprevs = [np.random.normal(scale=1 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
-		self.W_o_alprevs = [np.random.normal(scale=1 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
+		self.W_i_alprevs = [np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
+		self.W_f_alprevs = [np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
+		self.W_c_alprevs = [np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
+		self.W_o_alprevs = [np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), l.get_Output_dim())) for l in self.layers]
 
-		self.W_i_atprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), self.get_Output_dim()))
-		self.W_f_atprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), self.get_Output_dim()))
-		self.W_c_atprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), self.get_Output_dim()))
-		self.W_o_atprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), self.get_Output_dim()))
+		self.W_i_atprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), self.get_Output_dim()))
+		self.W_f_atprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), self.get_Output_dim()))
+		self.W_c_atprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), self.get_Output_dim()))
+		self.W_o_atprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), self.get_Output_dim()))
 
-		self.w_i_ctprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
-		self.w_f_ctprev = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
-		self.w_o_c = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
+		self.w_i_ctprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
+		self.w_f_ctprev = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
+		self.w_o_c = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
 
-		self.b_i = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
-		self.b_f = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
-		self.b_c = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
-		self.b_o = np.random.normal(scale=1 ,size=(self.get_Output_dim(), 1))
+		self.b_i = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
+		self.b_f = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
+		self.b_c = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
+		self.b_o = np.random.normal(scale=0.3 ,size=(self.get_Output_dim(), 1))
 
 
 	def prop(self):
@@ -686,10 +679,10 @@ class LSTM(Layer):
 		self.a[-1] = self.get_o(t=0) * self.__tanh__(self.get_c(t=0))
 		return self.get_Output(t=0)
 
-	def reset(self , init_cond = None):
+	def reset(self, minibatch_size, init_cond = None):
 		if init_cond is None:
-			self.a = [np.zeros((self.num_cel,1))]
-			self.c = [np.zeros((self.num_cel,1))]
+			self.a = [np.zeros((self.num_cel,minibatch_size))]
+			self.c = [np.zeros((self.num_cel,minibatch_size))]
 		else:
 			len_ = int(init_cond.shape[0]/2)
 			self.a = [init_cond[:len_,:]]

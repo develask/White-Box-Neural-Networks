@@ -136,7 +136,7 @@ class DNN():
 
 	def prop(self, inp):
 		for layer in self.prop_order:
-			layer.reset()
+			layer.reset(inp[0][0].shape[1])
 		out = []
 		for inp_t in inp:
 			inp_t_cop = inp_t.copy()
@@ -170,18 +170,13 @@ class DNN():
 
 	def get_minibach_grad(self, mini_batch):
 		loss = 0
-		len_m_b = len(mini_batch)
-
 		self.reset_gradients()
-
-		for j in range(len(mini_batch)):
-			out = self.backprop(*mini_batch[j])
-			# print(j,":", out, mini_batch[j][1])
-			loss += self.loss.ff(out,mini_batch[j][1])
+		out = self.backprop(*mini_batch)
+		# print(j,":", out, mini_batch[j][1])
+		loss += np.sum(self.loss.ff(out,mini_batch[1]))
 
 		# Normalizar los gradientes
-		self.apply_to_gradients(lambda grad: grad/len_m_b)
-
+		self.apply_to_gradients(lambda grad: grad/mini_batch[1].shape[1])
 		return loss
 
 	def update_model(self):
@@ -191,39 +186,41 @@ class DNN():
 
 	def get_loss_of_data(self, data):
 		loss = 0
-		len_tr = len(data)
-		for ex in data:
-			out = self.prop(ex[0].copy())
-			loss += self.loss.ff(out[-1],ex[1])
-		return loss[0]/len_tr
+		len_tr = data[1].shape[1]
+		out = self.prop(data[0].copy())
+		loss += np.sum(self.loss.ff(out[-1],data[1]))
+		return loss/len_tr
 
 	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end, func = None):
 		self.lr = lr_start
-		dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
-		len_tr = len(training_data)
+		dec_rate = 1
+		if nb_epochs != 1:
+			dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
 
-		for i in range(nb_epochs):
+		nb_training_examples = training_data[1].shape[1]
+		indexes = np.arange(nb_training_examples)
+
+		for j in range(nb_epochs):
 			loss = 0
 
-			random.shuffle(training_data)
-			mini_batches = [ training_data[ k:k+batch_size ] for k in range(0, len_tr, batch_size)]
-			
-			for m_b in mini_batches:
+			random.shuffle(indexes)
+			for i in range(0,nb_training_examples, batch_size):
+				m_b = ([[input_[:,indexes[i:i+batch_size]] for input_ in time_step] for time_step in training_data[0]], training_data[1][:,indexes[i:i+batch_size]])
 				loss_m_b = self.get_minibach_grad(m_b)
 				loss += loss_m_b
 				self.update_model()
 
-			print(i+1,"training loss:", loss[0]/len_tr)
-			val_loss = self.get_loss_of_data(validation_data)
-			print("\t\-> validation loss:", val_loss)
+			print(j+1,"training loss:", loss/nb_training_examples)
+			#val_loss = self.get_loss_of_data(validation_data)
+			#print("\t\-> validation loss:", val_loss)
 			if func is not None:
-				func(i, loss[0]/len_tr, val_loss, self.lr)
+				func(j, loss/nb_training_examples, val_loss, self.lr)
 			self.lr *= dec_rate
 
 			#self.save(self.name+"_ep_"+str(i) + "_%Y-%m-%d_%H-%M")
 
-		print("final training loss:", self.get_loss_of_data(training_data))
-		print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
+		#print("final training loss:", self.get_loss_of_data(training_data))
+		#print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
 
 	def save(self, name = None):
 		dir_ = time.strftime(name if name is not None else self.name + "_%Y-%m-%d_%H-%M")
@@ -272,69 +269,48 @@ if __name__ == '__main__':
 
 	from layers import Fully_Connected, LSTM
 	
-	nn = DNN("recurrente")
+	nn = DNN("minibatching")
 
-	x = Input(1, "x")
+	x = Input(2, "x")
+	h = LSTM(20, "kk")
+	out = Fully_Connected(2, "softmax", "mitiko 2")
 
-	def func(x):
-		return math.sin(sum([a[0] for a in x]))**2
-
-	R1 = LSTM(100, "r1")
-	R2 = LSTM(100, "r2")
-	R3 = LSTM(100, "r3")
-
-	ff = Fully_Connected(1, "sigmoid", "ff2")
-
-
-	x.addNext(R1)
-	R1.addNext(R2)
-	R2.addNext(R3)
-	R3.addNext(ff)
-
-
-	# R1.addNextRecurrent(R1)
-	# R2.addNextRecurrent(R2)
-	# R3.addNextRecurrent(R3)
+	x.addNext(h)
+	h.addNext(out)
 
 	nn.add_inputs(x)
 
 	nn.initialize()
-	print("kk",R3.w_i_ctprev[0], R3.b_f[0])
-	training_data = []
 
+	def f(inps):
+		x = inps[0,:]
+		y = inps[1,:]
+		z = inps[2,:]
+		v = inps[3,:]
+		a = (np.cos(x-2*y+z*v)**2)[np.newaxis]
+		return np.concatenate((a, 1-a), axis=0)
 
-	for i in range(2000):
-		x = []
-		for i2 in range(random.randint(3,3)):
-			rr = random.random()
-			x.append( [ np.asarray([[rr]]) ] )
-		training_data.append(
-			(
-				x,
-				np.asarray([[ func(x) ]])
-			)
-		)
-	print("gonna train, holly shit I'm nervous")
+	def generate_examples(nb_examples):
+		inps = np.random.rand(4,nb_examples)
+		outs = f(inps)
+		return [[inps[:2,:]],[inps[2:,:]]], outs
 
-	start = time.clock()
+	examples_train = generate_examples(10000)
+	examples_test = generate_examples(100)
 
-	nn.SGD(training_data[500:], training_data[:500], 128, 10, 0.5, 0.05)
-	print("kk",R1.w_i_ctprev[0], R1.b_f[0])
+	nn.SGD(examples_train, examples_test, 128, 20, 0.5, 0.1)
 
-	end = time.clock()
-	interval_c = end-start
-	print("Time training: %.2gs" % interval_c)
-
+	examples_test = generate_examples(10)
+	y = nn.prop(examples_test[0])[-1]
 	for i in range(10):
-		x = []
-		for i2 in range(random.randint(3,3)):
-			rr = random.random()
-			x.append( [ np.asarray([[rr]]) ] )
-		inp = x
+		print(examples_test[0][0][0][:,i], examples_test[0][1][0][:,i], "\n\t--> R", examples_test[1][:,i], "\n\t    P", y[:,i])
 
-		em = func(x)
 
-		print("-----------------------")
-		#print("input:", inp)
-		print("expected:", em)
-		print("output:", nn.prop(inp)[-1])
+
+
+
+
+
+
+
+

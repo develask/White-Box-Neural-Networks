@@ -106,8 +106,9 @@ class DNN():
 				found = True
 			self.prop_order[i].set_in_recurrent_part(found)
 
-	def add_inputs(self, layer):
-		self.inputs.append(layer)
+	def add_inputs(self, *layers):
+		for layer in layers:
+			self.inputs.append(layer)
 
 	def addNext(self, layer):
 		self.next.append(layer)

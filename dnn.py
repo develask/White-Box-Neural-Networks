@@ -191,7 +191,8 @@ class DNN():
 		loss += np.sum(self.loss.ff(out[-1],data[1]))
 		return loss/len_tr
 
-	def SGD(self, training_data, validation_data, batch_size, nb_epochs, lr_start, lr_end, func = None):
+	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end,
+			func = lambda *x: print(x[0],"training loss:", x[2])):
 		self.lr = lr_start
 		dec_rate = 1
 		if nb_epochs != 1:
@@ -210,17 +211,9 @@ class DNN():
 				loss += loss_m_b
 				self.update_model()
 
-			print(j+1,"training loss:", loss/nb_training_examples)
-			#val_loss = self.get_loss_of_data(validation_data)
-			#print("\t\-> validation loss:", val_loss)
 			if func is not None:
-				func(j, loss/nb_training_examples, val_loss, self.lr)
+				func(j, self, loss/nb_training_examples)
 			self.lr *= dec_rate
-
-			#self.save(self.name+"_ep_"+str(i) + "_%Y-%m-%d_%H-%M")
-
-		#print("final training loss:", self.get_loss_of_data(training_data))
-		#print("\t\-> validation loss:", self.get_loss_of_data(validation_data))
 
 	def save(self, name = None):
 		dir_ = time.strftime(name if name is not None else self.name + "_%Y-%m-%d_%H-%M")
@@ -296,9 +289,8 @@ if __name__ == '__main__':
 		return [[inps[:2,:]],[inps[2:,:]]], outs
 
 	examples_train = generate_examples(10000)
-	examples_test = generate_examples(100)
 
-	nn.SGD(examples_train, examples_test, 128, 20, 0.5, 0.1)
+	nn.SGD(examples_train, 128, 20, 0.5, 0.1)
 
 	examples_test = generate_examples(10)
 	y = nn.prop(examples_test[0])[-1]

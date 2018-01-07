@@ -6,9 +6,10 @@ See owr wiki: [link](https://github.com/develask/White-Box-Neural-Networks/wiki)
 
 Next steps:
 
-- [x] Minibatching
+- [X] Minibatching
 - [ ] Correct the softmax activation function
 - [ ] Add covolution layer
-- [ ] Change the shape order of inputs: (examples, feats)
+- [X] Change the shape order of inputs: (examples, feats)
+- [ ] Change the order of inputs and time
 - [ ] Generalize for more kind of networks
 

@@ -137,7 +137,7 @@ class DNN():
 
 	def prop(self, inp):
 		for layer in self.prop_order:
-			layer.reset(inp[0][0].shape[1])
+			layer.reset(inp[0][0].shape[0])
 		out = []
 		for inp_t in inp:
 			inp_t_cop = inp_t.copy()
@@ -177,7 +177,7 @@ class DNN():
 		loss += np.sum(self.loss.ff(out,mini_batch[1]))
 
 		# Normalizar los gradientes
-		self.apply_to_gradients(lambda grad: grad/mini_batch[1].shape[1])
+		self.apply_to_gradients(lambda grad: grad/mini_batch[1].shape[0])
 		return loss
 
 	def update_model(self):
@@ -187,7 +187,7 @@ class DNN():
 
 	def get_loss_of_data(self, data):
 		loss = 0
-		len_tr = data[1].shape[1]
+		len_tr = data[1].shape[0]
 		out = self.prop(data[0].copy())
 		loss += np.sum(self.loss.ff(out[-1],data[1]))
 		return loss/len_tr
@@ -199,7 +199,7 @@ class DNN():
 		if nb_epochs != 1:
 			dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
 
-		nb_training_examples = training_data[1].shape[1]
+		nb_training_examples = training_data[1].shape[0]
 		indexes = np.arange(nb_training_examples)
 
 		for j in range(nb_epochs):
@@ -207,7 +207,7 @@ class DNN():
 
 			random.shuffle(indexes)
 			for i in range(0,nb_training_examples, batch_size):
-				m_b = ([[input_[:,indexes[i:i+batch_size]] for input_ in time_step] for time_step in training_data[0]], training_data[1][:,indexes[i:i+batch_size]])
+				m_b = ([[input_[indexes[i:i+batch_size],:] for input_ in time_step] for time_step in training_data[0]], training_data[1][indexes[i:i+batch_size],:])
 				loss_m_b = self.get_minibach_grad(m_b)
 				loss += loss_m_b
 				self.update_model()
@@ -277,17 +277,17 @@ if __name__ == '__main__':
 	nn.initialize()
 
 	def f(inps):
-		x = inps[0,:]
-		y = inps[1,:]
-		z = inps[2,:]
-		v = inps[3,:]
-		a = (np.cos(x-2*y+z*v)**2)[np.newaxis]
-		return np.concatenate((a, 1-a), axis=0)
+		x = inps[:,0]
+		y = inps[:,1]
+		z = inps[:,2]
+		v = inps[:,3]
+		a = (np.cos(x-2*y+z*v)**2)[:,np.newaxis]
+		return np.concatenate((a, 1-a), axis=1)
 
 	def generate_examples(nb_examples):
-		inps = np.random.rand(4,nb_examples)
+		inps = np.random.rand(nb_examples,4)
 		outs = f(inps)
-		return [[inps[:2,:]],[inps[2:,:]]], outs
+		return [[inps[:,:2]],[inps[:,2:]]], outs
 
 	examples_train = generate_examples(10000)
 
@@ -296,7 +296,7 @@ if __name__ == '__main__':
 	examples_test = generate_examples(10)
 	y = nn.prop(examples_test[0])[-1]
 	for i in range(10):
-		print(examples_test[0][0][0][:,i], examples_test[0][1][0][:,i], "\n\t--> R", examples_test[1][:,i], "\n\t    P", y[:,i])
+		print(examples_test[0][0][0][i,:], examples_test[0][1][0][i,:], "\n\t--> R", examples_test[1][i,:], "\n\t    P", y[i,:])
 
 
 

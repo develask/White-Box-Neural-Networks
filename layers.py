@@ -8,15 +8,9 @@ class Activation_Function():
 		if self.name == "sigmoid":
 			def ff_(z):
 				return 1 / (1 + np.exp(-z))
-			#self.ff = lambda z: 1 / (1 + np.exp(-z))
 			self.ff = ff_
-			def derivate_(z):
-				return np.exp(-z)/(1+np.exp(-z))**2
-			# self.derivate = lambda z: np.exp(-z)/(1+np.exp(-z))**2
-			self.derivate = derivate_
 			def derivative_ff_(a):
 				return a*(1-a)
-			# self.derivative_ff = lambda a: a*(1-a)
 			self.derivative_ff = derivative_ff_
 
 
@@ -25,26 +19,17 @@ class Activation_Function():
 				exp = np.exp(z)
 				return exp/np.sum(exp, axis=1)[:,np.newaxis]
 			self.ff = ff_
-			def derivate_(z):
-				exp = np.exp(z)
-				suma = np.sum(exp, axis=1)[:,np.newaxis]
-				div = exp / suma
-				return div - div**2
-			self.derivate = derivate_
 			def derivative_ff_(a):
 				return a*(1-a)
-			# self.derivative_ff = lambda a: a - a**2
 			self.derivative_ff = derivative_ff_
 
-		elif self.name == "relu":
-			self.ff = lambda z: np.maximum(z, 0)
-			self.derivate = lambda z: (np.sign(z)+1)/2
-			self.derivative_ff = lambda a: np.sign(a)
+		# elif self.name == "relu":
+		# 	self.ff = lambda z: np.maximum(z, 0)
+		# 	self.derivative_ff = lambda a: np.sign(a)
 
-		elif self.name == "linear":
-			self.ff = lambda z: z
-			self.derivate = lambda z: np.full(z.shape, 1)
-			self.derivative_ff = lambda a: np.full(a.shape, 1)
+		# elif self.name == "linear":
+		# 	self.ff = lambda z: z
+		# 	self.derivative_ff = lambda a: np.full(a.shape, 1)
 		else:
 			raise ValueError("Not defined activation function")
 
@@ -320,6 +305,73 @@ class Fully_Connected(Layer):
 	def __load__dict__(self, d):
 		self.W = d['W']
 		self.b = d['b']
+
+class Softmax(Fully_Connected):
+	def __init__(self, output_dim, name):
+		class Act_func():
+			def __init__(self, name):
+				self.name = name
+			def ff(self, z):
+				exp = np.exp(z)
+				return exp/np.sum(exp, axis=1)[:,np.newaxis]
+			def derivative_ff(self, a):
+				indx = np.arange(a.shape[-1])
+				def my_func(x):
+					x=x[np.newaxis]
+					a = np.dot(x.T,x)
+					np.fill_diagonal(a, x*(1-x))
+					return a
+				b = np.apply_along_axis(my_func, 1, a)
+				return b
+
+		activation_function = Act_func("softmax")
+		super(Softmax, self).__init__(output_dim, "sigmoid", name)
+		self.act_f = activation_function
+
+
+	# def get_error_contribution(self, layer, t=0):
+	# 	return np.dot(
+	# 		self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
+	# 		np.transpose(self.W_of_layer(layer))
+	# 	)
+
+	def get_error_contribution(self, layer, t=0):
+		return np.dot(
+					np.dot(
+						self.get_error(t=t),
+						self.act_f.derivative_ff(self.get_Output(t=t))
+					),
+					np.transpose(self.W_of_layer(layer))
+		)
+
+	def compute_gradients(self):
+		num_t = len(self.error)
+		b_grad_aux = 0
+		W_grad_aux = [0]*len(self.W_grad)
+		for t in range(0,-num_t, -1):
+			#aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
+			b_grad_aux += np.dot(
+							self.get_error(t=t),
+							self.act_f.derivative_ff(self.get_Output(t=t))
+							)
+			W_grad_aux = list(map(lambda x,y: x+y,
+				W_grad_aux,
+				[np.dot( np.dot(np.transpose(l.get_Output(t=t-1)), self.get_error(t=t)), self.act_f.derivative_ff(self.get_Output(t=t))) for l in self.prev_recurrent] +
+				[np.dot( np.dot(np.transpose(l.get_Output(t=t)), self.get_error(t=t)), self.act_f.derivative_ff(self.get_Output(t=t))) for l in self.prev]
+			))
+		self.b_grad += b_grad_aux
+		self.W_grad = list(map(lambda x,y: x+y,
+				self.W_grad, W_grad_aux
+		))
+
+	def copy(self):
+		return Softmax(self.output_dim, self.name)
+
+	def __save__dict__(self):
+		return {
+			'W': self.W,
+			'b': self.b
+		}, [self.output_dim, self.name]
 
 class LSTM(Layer):
 	def __init__(self, num_cel, name):

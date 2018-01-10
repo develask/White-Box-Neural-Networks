@@ -261,13 +261,13 @@ if __name__ == '__main__':
 	import math
 	import time
 
-	from layers import Fully_Connected, LSTM
+	from layers import Fully_Connected, LSTM, Softmax
 	
 	nn = DNN("minibatching")
 
 	x = Input(2, "x")
 	h = LSTM(20, "kk")
-	out = Fully_Connected(2, "softmax", "mitiko 2")
+	out = Softmax(2, "mitiko 2")
 
 	x.addNext(h)
 	h.addNext(out)
@@ -283,6 +283,7 @@ if __name__ == '__main__':
 		v = inps[:,3]
 		a = (np.cos(x-2*y+z*v)**2)[:,np.newaxis]
 		return np.concatenate((a, 1-a), axis=1)
+		# return np.concatenate((a/4, 3*a/4, (1-a)/4, 3*(1-a)/4), axis=1)
 
 	def generate_examples(nb_examples):
 		inps = np.random.rand(nb_examples,4)
@@ -291,7 +292,7 @@ if __name__ == '__main__':
 
 	examples_train = generate_examples(10000)
 
-	nn.SGD(examples_train, 128, 20, 0.5, 0.1)
+	nn.SGD(examples_train, 128, 10, 0.5, 0.1)
 
 	examples_test = generate_examples(10)
 	y = nn.prop(examples_test[0])[-1]

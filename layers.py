@@ -217,7 +217,6 @@ class Fully_Connected(Layer):
 
 	def initialize(self):
 		self.W = [np.random.normal(scale=1 ,size=(l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
-		#self.W = [np.ones((self.get_Output_dim(), l.get_Output_dim())) for l in self.prev_recurrent + self.prev]
 		self.b = np.random.normal(scale=1, size=(1, self.output_dim))
 		self.initialize_done = True
 
@@ -315,10 +314,9 @@ class Softmax(Fully_Connected):
 				exp = np.exp(z)
 				return exp/np.sum(exp, axis=1)[:,np.newaxis]
 			def derivative_ff(self, a):
-				indx = np.arange(a.shape[-1])
 				def my_func(x):
 					x=x[np.newaxis]
-					a = np.dot(x.T,x)
+					a = -np.dot(x.T,x)
 					np.fill_diagonal(a, x*(1-x))
 					return a
 				b = np.apply_along_axis(my_func, 1, a)
@@ -328,20 +326,13 @@ class Softmax(Fully_Connected):
 		super(Softmax, self).__init__(output_dim, "sigmoid", name)
 		self.act_f = activation_function
 
-
-	# def get_error_contribution(self, layer, t=0):
-	# 	return np.dot(
-	# 		self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
-	# 		np.transpose(self.W_of_layer(layer))
-	# 	)
-
 	def get_error_contribution(self, layer, t=0):
 		return np.dot(
-					np.dot(
-						self.get_error(t=t),
-						self.act_f.derivative_ff(self.get_Output(t=t))
-					),
-					np.transpose(self.W_of_layer(layer))
+			np.einsum('ij,ijk->ik',
+				self.get_error(t=t),
+				self.act_f.derivative_ff(self.get_Output(t=t))
+			),
+			np.transpose(self.W_of_layer(layer))
 		)
 
 	def compute_gradients(self):
@@ -349,15 +340,14 @@ class Softmax(Fully_Connected):
 		b_grad_aux = 0
 		W_grad_aux = [0]*len(self.W_grad)
 		for t in range(0,-num_t, -1):
-			#aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
-			b_grad_aux += np.dot(
+			b_grad_aux += np.einsum('ij,ijk->ik',
 							self.get_error(t=t),
 							self.act_f.derivative_ff(self.get_Output(t=t))
 							)
 			W_grad_aux = list(map(lambda x,y: x+y,
 				W_grad_aux,
-				[np.dot( np.dot(np.transpose(l.get_Output(t=t-1)), self.get_error(t=t)), self.act_f.derivative_ff(self.get_Output(t=t))) for l in self.prev_recurrent] +
-				[np.dot( np.dot(np.transpose(l.get_Output(t=t)), self.get_error(t=t)), self.act_f.derivative_ff(self.get_Output(t=t))) for l in self.prev]
+				[np.dot(np.transpose(l.get_Output(t=t-1)), np.einsum('ij,ijk->ik', self.get_error(t=t),self.act_f.derivative_ff(self.get_Output(t=t)))) for l in self.prev_recurrent] +
+				[np.dot(np.transpose(l.get_Output(t=t)), np.einsum('ij,ijk->ik', self.get_error(t=t),self.act_f.derivative_ff(self.get_Output(t=t)))) for l in self.prev]
 			))
 		self.b_grad += b_grad_aux
 		self.W_grad = list(map(lambda x,y: x+y,

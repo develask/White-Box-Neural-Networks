@@ -27,9 +27,9 @@ class Activation_Function():
 		# 	self.ff = lambda z: np.maximum(z, 0)
 		# 	self.derivative_ff = lambda a: np.sign(a)
 
-		# elif self.name == "linear":
-		# 	self.ff = lambda z: z
-		# 	self.derivative_ff = lambda a: np.full(a.shape, 1)
+		elif self.name == "linear":
+			self.ff = lambda z: z
+			self.derivative_ff = lambda a: np.full(a.shape, 1)
 		else:
 			raise ValueError("Not defined activation function")
 
@@ -782,6 +782,109 @@ class LSTM(Layer):
 		self.b_f = d["b_f"]
 		self.b_c = d["b_c"]
 		self.b_o = d["b_o"]
+
+class Convolution(Layer):
+	def __init__(self, shape, kernel, activation_function, name):
+		super(Convolution, self).__init__(name)
+		assert len(shape) == len(kernel)
+		assert sum([shape[s]>=kernel[s] for s in range(len(shape))]) == len(shape)
+		assert sum(map(lambda x: x%2!=1, kernel))==0
+		self.shape = shape
+		self.kernel_shape = kernel
+		self.output_dim = np.multiply.reduce(np.subtract(self.shape, self.kernel_shape) +1)
+		self.act_f = Activation_Function(activation_function)
+
+	def initialize(self):
+		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape)
+		self.kernel = np.random.normal(scale=1, size=self.kernel_shape)
+		# self.W = [np.random.normal(scale=1 ,size=(l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
+		self.b = np.random.normal(scale=1, size=(1))
+		self.initialize_done = True
+
+	def set_loss_error(self, loss_gradient):
+		#    This function will be used in the first step of the BP.,
+		# when the error is set from the cost function (in supervised learning)
+		self.error = [loss_gradient]
+
+	# def get_error_contribution(self, layer, t=0):
+	# 	return np.dot(
+	# 		self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
+	# 		np.transpose(self.W_of_layer(layer))
+	# 	)
+	# def backprop_error(self,t=0):
+	# 	#  this function will be used during the BP. to calculate the error
+	# 	aux = 0
+	# 	if t != 0:
+	# 		for layer in self.next_rercurrent:
+	# 			aux += layer.get_error_contribution(self, t=t+1)
+	# 	for layer in self.next:
+	# 		if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+	# 			aux += layer.get_error_contribution(self, t=t)
+	# 	self.error = [aux]+self.error
+
+	# def reset_grads(self):
+	# 	self.b_grad = 0
+	# 	self.W_grad = [0]*(len(self.prev)+len(self.prev_recurrent))
+
+	# def compute_gradients(self):
+	# 	num_t = len(self.error)
+	# 	b_grad_aux = 0
+	# 	W_grad_aux = [0]*len(self.W_grad)
+	# 	for t in range(0,-num_t, -1):
+	# 		aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
+	# 		b_grad_aux += aux
+	# 		W_grad_aux = list(map(lambda x,y: x+y,
+	# 			W_grad_aux,
+	# 			[np.dot(np.transpose(l.get_Output(t=t-1)), aux) for l in self.prev_recurrent] +
+	# 			[np.dot(np.transpose(l.get_Output(t=t)), aux) for l in self.prev]
+	# 		))
+	# 	self.b_grad += b_grad_aux
+	# 	self.W_grad = list(map(lambda x,y: x+y,
+	# 			self.W_grad, W_grad_aux
+	# 	))
+
+
+	# def apply_to_gradients(self, func):
+	# 	self.b_grad = func(self.b_grad)
+	# 	self.W_grad = list(map(func, self.W_grad))
+
+	def update(self):
+		self.__update_b__()
+		self.__update_kernel__()
+
+	# def __update_kernel__(self):
+	# 	for i in range(len(self.W_grad)):
+	# 		self.W[i] -= self.W_grad[i]
+
+	# def __update_b__(self):
+	# 	self.b -= np.sum(self.b_grad, axis=0)[np.newaxis]
+
+	def prop(self):
+		inp = np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=1)
+		shape = self.kernel_shape + (inp.shape[0],) + tuple(np.subtract(self.shape, self.kernel_shape) + 1)
+		strides = [inp.strides[-1]]
+		for sh in reversed(self.shape):
+			strides.insert(0, strides[0]*sh)
+		strides = (strides * 2)[1:]
+		M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
+		self.z = np.einsum('pqr,pqrbmno->bmno', self.kernel, M) + self.b
+		out = self.act_f.ff(self.z)
+		self.a = self.a + [out]
+		return out
+
+	# def copy(self):
+	# 	return Fully_Connected(self.output_dim, self.act_f.name, self.name)
+
+	# def __save__dict__(self):
+	# 	return {
+	# 		'W': self.W,
+	# 		'b': self.b
+	# 	}, [self.output_dim, self.act_f.name, self.name]
+
+	# def __load__dict__(self, d):
+	# 	self.W = d['W']
+	# 	self.b = d['b']
+		
 
 	
 

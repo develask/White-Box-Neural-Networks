@@ -192,6 +192,11 @@ class DNN():
 		loss += np.sum(self.loss.ff(out[-1],data[1]))
 		return loss/len_tr
 
+	def train_step(self, m_b):
+		loss_m_b = self.get_minibach_grad(m_b)
+		self.update_model()
+		return loss_m_b
+
 	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end,
 			func = lambda *x: print(x[0],"training loss:", x[2])):
 		self.lr = lr_start
@@ -208,9 +213,7 @@ class DNN():
 			random.shuffle(indexes)
 			for i in range(0,nb_training_examples, batch_size):
 				m_b = ([[input_[indexes[i:i+batch_size],:] for input_ in time_step] for time_step in training_data[0]], training_data[1][indexes[i:i+batch_size],:])
-				loss_m_b = self.get_minibach_grad(m_b)
-				loss += loss_m_b
-				self.update_model()
+				loss += self.train_step(m_b)
 
 			if func is not None:
 				func(j, self, loss/nb_training_examples)

@@ -867,7 +867,8 @@ class Convolution(Layer):
 			strides.insert(0, strides[0]*sh)
 		strides = (strides * 2)[1:]
 		M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
-		self.z = np.einsum('pqr,pqrbmno->bmno', self.kernel, M) + self.b
+		chars = ''.join([chr(97+i) for i in range(len(M.shape))])
+		self.z = np.einsum(chars[:len(self.kernel.shape)]+','+chars+'->'+chars[len(self.kernel.shape):], self.kernel, M) + self.b
 		out = self.act_f.ff(self.z)
 		self.a = self.a + [out]
 		return out

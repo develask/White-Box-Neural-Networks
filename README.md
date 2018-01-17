@@ -1,6 +1,6 @@
 # White Box Neural Networks
 
-![wbnn_logo](https://raw.githubusercontent.com/wiki/develask/White-Box-Neural-Networks/wbnn_logo.png | width=100)
+<img src="https://raw.githubusercontent.com/wiki/develask/White-Box-Neural-Networks/wbnn_logo.png" width="200">
 
 This tookit is the result of two Master thesis, and is still under development. For the moment standard multilayer neural networks have been developed, as well as networks with paralell connections and recurrent neural netoworks, LSTMs included.
 

@@ -12,4 +12,5 @@ Next steps:
 - [X] Change the shape order of inputs: (examples, feats)
 - [ ] Change the order of inputs and time
 - [ ] Generalize for more kind of networks
+- [ ] Inprove speed (do inp adition before multiplication)
 

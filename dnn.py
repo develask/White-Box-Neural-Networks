@@ -16,7 +16,7 @@ class Loss():
 		if self.name == "mse":
 			return sum((y-a)**2)/2
 		elif self.name == "ce1":
-			return sum(-y*np.log(a+0.0001)-(1-y)*np.log(1.0001-a))
+			return -(y*np.log(a+0.000001))-((1-y)*np.log(1.000001-a))
 
 	def grad(self, a, y):
 		# returns the gradient with respect to all the components of a.
@@ -28,10 +28,9 @@ class Loss():
 				if np.isnan(-y/(a) + (1-y)/(1-a)).any():
 					pass
 
-				return -y/(a) + (1-y)/(1-a)
+				return -(y/(a)) + (1-y)/(1-a)
 			else:
-				return -(y)/(a+0.0001) + (1-y)/(1.0001-a)
-	
+				return -(y/(a+0.0001)) + (1-y)/(1.0001-a)
 
 class DNN():
 	def __init__(self, name):
@@ -173,7 +172,6 @@ class DNN():
 		loss = 0
 		self.reset_gradients()
 		out = self.backprop(*mini_batch)
-		# print(j,":", out, mini_batch[j][1])
 		loss += np.sum(self.loss.ff(out,mini_batch[1]))
 
 		# Normalizar los gradientes

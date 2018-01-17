@@ -216,8 +216,8 @@ class Fully_Connected(Layer):
 		self.act_f = Activation_Function(activation_function)
 
 	def initialize(self):
-		self.W = [np.random.normal(scale=1 ,size=(l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
-		self.b = np.random.normal(scale=1, size=(1, self.output_dim))
+		self.W = [np.random.normal(scale=0.001 ,size=(l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
+		self.b = np.random.normal(scale=0.001, size=(1, self.output_dim))
 		self.initialize_done = True
 
 	def W_of_layer(self, layer):
@@ -229,10 +229,11 @@ class Fully_Connected(Layer):
 		self.error = [loss_gradient]
 
 	def get_error_contribution(self, layer, t=0):
-		return np.dot(
+		aux = np.dot(
 			self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
 			np.transpose(self.W_of_layer(layer))
 		)
+		return aux
 	def backprop_error(self,t=0):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
@@ -784,92 +785,103 @@ class LSTM(Layer):
 		self.b_o = d["b_o"]
 
 class Convolution(Layer):
-	def __init__(self, shape, kernel, activation_function, name):
+	def __init__(self, shape, kernel, nb_filters, name):
 		super(Convolution, self).__init__(name)
 		assert len(shape) == len(kernel)
 		assert sum([shape[s]>=kernel[s] for s in range(len(shape))]) == len(shape)
-		assert sum(map(lambda x: x%2!=1, kernel))==0
+		# assert sum(map(lambda x: x%2!=1, kernel))==0
 		self.shape = shape
 		self.kernel_shape = kernel
-		self.output_dim = np.multiply.reduce(np.subtract(self.shape, self.kernel_shape) +1)
-		self.act_f = Activation_Function(activation_function)
+		self.nb_filters = nb_filters
+		self.output_dim = np.multiply.reduce(np.subtract(self.shape, self.kernel_shape) +1) * self.nb_filters
 
 	def initialize(self):
 		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape)
-		self.kernel = np.random.normal(scale=1, size=self.kernel_shape)
-		# self.W = [np.random.normal(scale=1 ,size=(l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
-		self.b = np.random.normal(scale=1, size=(1))
+		assert len(self.prev_recurrent + self.prev)==1 or len(self.prev_recurrent + self.prev) == self.shape[0]
+		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
+		self.W = [np.random.normal(scale=0.001, size=self.kernel_shape) for k in range(self.nb_filters)]
+		self.b = np.random.normal(scale=0.001, size=(self.nb_filters,)).tolist()
 		self.initialize_done = True
 
 	def set_loss_error(self, loss_gradient):
 		#    This function will be used in the first step of the BP.,
 		# when the error is set from the cost function (in supervised learning)
-		self.error = [loss_gradient]
+		dimension = loss_gradient.shape[1]//self.nb_filters
+		self.error = [[loss_gradient[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)]]
 
-	# def get_error_contribution(self, layer, t=0):
-	# 	return np.dot(
-	# 		self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
-	# 		np.transpose(self.W_of_layer(layer))
-	# 	)
-	# def backprop_error(self,t=0):
-	# 	#  this function will be used during the BP. to calculate the error
-	# 	aux = 0
-	# 	if t != 0:
-	# 		for layer in self.next_rercurrent:
-	# 			aux += layer.get_error_contribution(self, t=t+1)
-	# 	for layer in self.next:
-	# 		if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-	# 			aux += layer.get_error_contribution(self, t=t)
-	# 	self.error = [aux]+self.error
+	def get_error(self, t=0, f=0):
+		return self.error[t-1][f].reshape((self.error[t-1][f].shape[0],)+tuple(np.subtract(self.shape, self.kernel_shape) + 1))
 
-	# def reset_grads(self):
-	# 	self.b_grad = 0
-	# 	self.W_grad = [0]*(len(self.prev)+len(self.prev_recurrent))
+	def get_error_contribution(self, layer, t=0):
+		result = 0
+		for f in range(self.nb_filters):
+			np.set_printoptions(precision=4)
+			kk = self.get_error(t=t, f=f)
+			pad = tuple([(x,x)for x in np.subtract(self.kernel_shape, 1)])
+			mat = np.lib.pad(kk, ((0,0),)+pad, 'constant', constant_values=0)
+			for i in range(len(self.kernel_shape)):
+				mat = np.flip(mat,axis=i+1)
+			shape = (mat.shape[0],) + self.kernel_shape + self.shape
+			strides = tuple([mat.strides[0]]) +  mat.strides[1:] + mat.strides[1:]
+			mat = np.lib.stride_tricks.as_strided(mat, shape=shape, strides=strides)
+			for i in range(len(self.kernel_shape)):
+				mat = np.flip(mat,axis=i+1+len(self.kernel_shape))
+			chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
+			result += np.einsum(chars[1:len(self.W[f].shape)+1]+','+chars+'->a'+chars[1+len(self.W[f].shape):], self.W[f], mat)
+		return result.reshape(result.shape[0], layer.get_Output_dim())
 
-	# def compute_gradients(self):
-	# 	num_t = len(self.error)
-	# 	b_grad_aux = 0
-	# 	W_grad_aux = [0]*len(self.W_grad)
-	# 	for t in range(0,-num_t, -1):
-	# 		aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
-	# 		b_grad_aux += aux
-	# 		W_grad_aux = list(map(lambda x,y: x+y,
-	# 			W_grad_aux,
-	# 			[np.dot(np.transpose(l.get_Output(t=t-1)), aux) for l in self.prev_recurrent] +
-	# 			[np.dot(np.transpose(l.get_Output(t=t)), aux) for l in self.prev]
-	# 		))
-	# 	self.b_grad += b_grad_aux
-	# 	self.W_grad = list(map(lambda x,y: x+y,
-	# 			self.W_grad, W_grad_aux
-	# 	))
+	def backprop_error(self,t=0):
+		 # this function will be used during the BP. to calculate the error
+		aux = 0
+		if t != 0:
+			for layer in self.next_rercurrent:
+				aux += layer.get_error_contribution(self, t=t+1)
+		for layer in self.next:
+			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+				aux += layer.get_error_contribution(self, t=t)
+		dimension = aux.shape[1]//self.nb_filters
+		self.error = [[aux[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)]]+self.error
+
+	def reset_grads(self):
+		self.b_grad = [0] * self.nb_filters
+		self.W_grad = [0] * self.nb_filters
+
+	def compute_gradients(self):
+		num_t = len(self.error)
+		self.b_grad = [sum([np.sum(self.get_error(t=t, f=f)) for t in range(0,-num_t, -1)]) for f in range(self.nb_filters)]
+		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
+		for f in range(self.nb_filters):
+			for t in range(0,-num_t, -1):
+				self.W_grad[f] += np.einsum('a'+chars[1+len(self.kernel_shape):]+','+chars+'->'+chars[1:len(self.kernel_shape)+1], self.get_error(t=t,f=f), self.x_M)
 
 
-	# def apply_to_gradients(self, func):
-	# 	self.b_grad = func(self.b_grad)
-	# 	self.W_grad = list(map(func, self.W_grad))
+	def apply_to_gradients(self, func):
+		self.b_grad = list(map(func, self.b_grad))
+		self.W_grad = list(map(func, self.W_grad))
 
 	def update(self):
 		self.__update_b__()
-		self.__update_kernel__()
+		self.__update_W__()
 
-	# def __update_kernel__(self):
-	# 	for i in range(len(self.W_grad)):
-	# 		self.W[i] -= self.W_grad[i]
+	def __update_W__(self):
+		for i in range(len(self.W_grad)):
+			self.W[i] -= self.W_grad[i]
 
-	# def __update_b__(self):
-	# 	self.b -= np.sum(self.b_grad, axis=0)[np.newaxis]
+	def __update_b__(self):
+		for i in range(len(self.b_grad)):
+			self.b[i] -= self.b_grad[i]
 
 	def prop(self):
 		inp = np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=1)
-		shape = self.kernel_shape + (inp.shape[0],) + tuple(np.subtract(self.shape, self.kernel_shape) + 1)
+		shape = (inp.shape[0],) + self.kernel_shape + tuple(np.subtract(self.shape, self.kernel_shape) + 1)
 		strides = [inp.strides[-1]]
 		for sh in reversed(self.shape):
 			strides.insert(0, strides[0]*sh)
-		strides = (strides * 2)[1:]
-		M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
-		chars = ''.join([chr(97+i) for i in range(len(M.shape))])
-		self.z = np.einsum(chars[:len(self.kernel.shape)]+','+chars+'->'+chars[len(self.kernel.shape):], self.kernel, M) + self.b
-		out = self.act_f.ff(self.z)
+		strides = [strides[0]] + (strides[1:] * 2)
+		self.x_M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
+		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
+		out = [np.einsum(chars[1:len(self.kernel_shape)+1]+','+chars+'->a'+chars[1+len(self.kernel_shape):], self.W[k], self.x_M) + self.b[k] for k in range(self.nb_filters)]
+		out = np.concatenate([tmp.reshape(tmp.shape[0], self.output_dim//self.nb_filters) for tmp in out], axis = 1)
 		self.a = self.a + [out]
 		return out
 
@@ -885,7 +897,73 @@ class Convolution(Layer):
 	# def __load__dict__(self, d):
 	# 	self.W = d['W']
 	# 	self.b = d['b']
-		
+
+
+class Activation_Layer(Layer):
+	def __init__(self, activation_function, name):
+		super(Activation_Layer, self).__init__(name)
+		self.act_f = Activation_Function(activation_function)
+
+	def initialize(self):
+		self.initialize_done = True
+
+	def get_Output_dim(self):
+		return sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)])
+
+	def set_loss_error(self, loss_gradient):
+		#    This function will be used in the first step of the BP.,
+		# when the error is set from the cost function (in supervised learning)
+		self.error = [loss_gradient]
+
+	def get_data_of_layer(self, x, layer):
+		i = (self.prev_recurrent+self.prev).index(layer)
+		init = sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)[:i]])
+		end = init+layer.get_Output_dim()
+		return x[:,init:end]
+
+	def get_error_contribution(self, layer, t=0):
+		return self.get_data_of_layer(self.get_error(t=t),layer)*self.get_data_of_layer(self.act_f.derivative_ff(self.get_Output(t=t)),layer)
+
+	def backprop_error(self,t=0):
+		#  this function will be used during the BP. to calculate the error
+		aux = 0
+		if t != 0:
+			for layer in self.next_rercurrent:
+				aux += layer.get_error_contribution(self, t=t+1)
+		for layer in self.next:
+			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+				aux += layer.get_error_contribution(self, t=t)
+		self.error = [aux]+self.error
+
+	def reset_grads(self):
+		pass
+
+	def compute_gradients(self):
+		pass
+
+
+	def apply_to_gradients(self, func):
+		pass
+
+	def update(self):
+		pass
+
+	def prop(self):
+		out = self.act_f.ff(np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=0))
+		self.a = self.a + [out]
+		return out
+
+	# def copy(self):
+	# 	return Fully_Connected(self.output_dim, self.act_f.name, self.name)
+
+	# def __save__dict__(self):
+	# 	return {
+	# 		'W': self.W,
+	# 		'b': self.b
+	# 	}, [self.output_dim, self.act_f.name, self.name]
+
+	# def __load__dict__(self, d):
+	# 	self.W = d['W']
+	# 	self.b = d['b']
 
 	
-

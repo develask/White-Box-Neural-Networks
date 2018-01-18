@@ -19,6 +19,7 @@ TODO list:
 
 • Stage 2:
 - [ ] RNN with outputs every time step
+- [ ] Multiple output layers
 - [ ] Convolution step/stride
 - [ ] Parameter sharing
 - [ ] Implement other optimization techniques

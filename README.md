@@ -17,11 +17,11 @@ Next steps:
 - [ ] Improve speed (do inp adition before multiplication)
 
 • Stage 2:
-- [ ] Dropout
-- [ ] Convolution step
 - [ ] RNN with outputs every time step
+- [ ] Convolution step/stride
 - [ ] Parameter sharing
 - [ ] Implement other optimization techniques
+- [ ] Dropout
 - [ ] Activation functions (softmax included) out of the Fully_Connected layer
 - [ ] Control initializations in a more apropriate way
 - [ ] High Level API/Script to create more complex net (recursive recurrences, seq2seq)
@@ -30,6 +30,6 @@ Next steps:
 • Stage 3:
 - [ ] Comment the code.
 - [ ] Reorganize the code.
-- [ ] Change variable, class, etc. names to make it more clear.
+- [ ] Change variable, class, function, etc. names to make them more representative.
 - [ ] Write an exhaustive wiki, with code and maths explanations.
 

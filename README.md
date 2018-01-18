@@ -20,6 +20,7 @@ Next steps:
 - [ ] Dropout
 - [ ] Convolution step
 - [ ] RNN with outputs every time step
+- [ ] Parameter sharing
 - [ ] Implement other optimization techniques
 - [ ] Activation functions (softmax included) out of the Fully_Connected layer
 - [ ] Control initializations in a more apropriate way

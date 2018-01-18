@@ -17,7 +17,6 @@ Next steps:
 - [ ] Improve speed (do inp adition before multiplication)
 
 • Stage 2:
-- [ ] Pooling Layers
 - [ ] Dropout
 - [ ] Convolution step
 - [ ] RNN with outputs every time step
@@ -25,6 +24,7 @@ Next steps:
 - [ ] Activation functions (softmax included) out of the Fully_Connected layer
 - [ ] Control initializations in a more apropriate way
 - [ ] High Level API/Script to create more complex net (recursive recurrences, seq2seq)
+- [ ] Pooling Layers (very low priority)
 
 • Stage 3:
 - [ ] Comment the code.

@@ -6,7 +6,7 @@ This tookit is the result of two Master thesis, and is still under development. 
 
 See our wiki: [link](https://github.com/develask/White-Box-Neural-Networks/wiki)
 
-Next steps:
+TODO list:
 
 • Stage 1:
 - [X] Minibatching

@@ -15,22 +15,34 @@ class Loss():
 	def ff(self, a, y):
 		if self.name == "mse":
 			return sum((y-a)**2)/2
+
 		elif self.name == "ce1":
 			return -(y*np.log(a+0.000001))-((1-y)*np.log(1.000001-a))
+
+		elif self.name == "ce2":
+			return -(y*np.log(a+0.000001))
 
 	def grad(self, a, y):
 		# returns the gradient with respect to all the components of a.
 		# Thus the dimension of the output np.array is the same that a, i.e. [output_dim, 1]
 		if self.name == "mse":
 			return a - y
+
 		elif self.name == "ce1":
 			if np.sum(a == 0) == 0 and np.sum(a==1) == 0:
-				if np.isnan(-y/(a) + (1-y)/(1-a)).any():
-					pass
-
+				# if np.isnan(-y/(a) + (1-y)/(1-a)).any():
+				# 	pass
 				return -(y/(a)) + (1-y)/(1-a)
 			else:
-				return -(y/(a+0.0001)) + (1-y)/(1.0001-a)
+				return -(y/(a+0.000001)) + (1-y)/(1.000001-a)
+
+		elif self.name == "ce2":
+			if np.sum(a == 0) == 0:
+				# if np.isnan(-y/(a) + (1-y)/(1-a)).any():
+				# 	pass
+				return -(y/(a))
+			else:
+				return -(y/(a+0.000001))
 
 class DNN():
 	def __init__(self, name):
@@ -262,16 +274,26 @@ if __name__ == '__main__':
 	import math
 	import time
 
-	from layers import Fully_Connected, LSTM, Softmax
+	from layers import Fully_Connected, LSTM, Softmax, Activation_Layer
 	
 	nn = DNN("minibatching")
+	nn.loss = Loss("ce2")
 
-	x = Input(2, "x")
-	h = LSTM(20, "kk")
-	out = Softmax(2, "mitiko 2")
+	x = Input(4, "x")
+	h1 = Fully_Connected(40,"linear", "h1")
+	a1 = Activation_Layer("relu", "a1")
+	h2 = Fully_Connected(40,"linear", "h2")
+	a2 = Activation_Layer("relu", "a2")
+	# h3 = Fully_Connected(2,"linear", "h3")
+	# a3 = Activation_Layer("softmax", "a3")
+	h3 = Softmax(2,"kkkk")
 
-	x.addNext(h)
-	h.addNext(out)
+	x.addNext(h1)
+	h1.addNext(a1)
+	a1.addNext(h2)
+	h2.addNext(a2)
+	a2.addNext(h3)
+	# h3.addNext(a3)
 
 	nn.add_inputs(x)
 
@@ -289,16 +311,16 @@ if __name__ == '__main__':
 	def generate_examples(nb_examples):
 		inps = np.random.rand(nb_examples,4)
 		outs = f(inps)
-		return [[inps[:,:2]],[inps[:,2:]]], outs
+		return [[inps]], outs
 
-	examples_train = generate_examples(10000)
+	examples_train = generate_examples(500000)
 
-	nn.SGD(examples_train, 128, 10, 0.5, 0.1)
+	nn.SGD(examples_train, 128, 10, 0.5, 0.5)
 
 	examples_test = generate_examples(10)
 	y = nn.prop(examples_test[0])[-1]
 	for i in range(10):
-		print(examples_test[0][0][0][i,:], examples_test[0][1][0][i,:], "\n\t--> R", examples_test[1][i,:], "\n\t    P", y[i,:])
+		print(examples_test[0][0][0][i,:], "\n\t--> R", examples_test[1][i,:], "\n\t    P", y[i,:])
 
 
 

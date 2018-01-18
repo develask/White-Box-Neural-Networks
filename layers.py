@@ -23,9 +23,13 @@ class Activation_Function():
 				return a*(1-a)
 			self.derivative_ff = derivative_ff_
 
-		# elif self.name == "relu":
-		# 	self.ff = lambda z: np.maximum(z, 0)
-		# 	self.derivative_ff = lambda a: np.sign(a)
+		elif self.name == "relu":
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivative_ff = lambda a: np.sign(a)
+
+		elif self.name == "leaky_relu":
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivative_ff = lambda a: np.maximum(np.sign(a), 0.01)
 
 		elif self.name == "linear":
 			self.ff = lambda z: z
@@ -790,8 +794,8 @@ class Convolution(Layer):
 		assert len(shape) == len(kernel)
 		assert sum([shape[s]>=kernel[s] for s in range(len(shape))]) == len(shape)
 		# assert sum(map(lambda x: x%2!=1, kernel))==0
-		self.shape = shape
-		self.kernel_shape = kernel
+		self.shape = tuple(shape)
+		self.kernel_shape = tuple(kernel)
 		self.nb_filters = nb_filters
 		self.output_dim = np.multiply.reduce(np.subtract(self.shape, self.kernel_shape) +1) * self.nb_filters
 
@@ -799,8 +803,8 @@ class Convolution(Layer):
 		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape)
 		assert len(self.prev_recurrent + self.prev)==1 or len(self.prev_recurrent + self.prev) == self.shape[0]
 		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
-		self.W = [np.random.normal(scale=0.001, size=self.kernel_shape) for k in range(self.nb_filters)]
-		self.b = np.random.normal(scale=0.001, size=(self.nb_filters,)).tolist()
+		self.W = [np.random.normal(scale=0.0001, size=self.kernel_shape) for k in range(self.nb_filters)]
+		self.b = np.random.normal(scale=0.0001, size=(self.nb_filters,))
 		self.initialize_done = True
 
 	def set_loss_error(self, loss_gradient):
@@ -813,21 +817,34 @@ class Convolution(Layer):
 		return self.error[t-1][f].reshape((self.error[t-1][f].shape[0],)+tuple(np.subtract(self.shape, self.kernel_shape) + 1))
 
 	def get_error_contribution(self, layer, t=0):
+		if self.W[0].shape[0] == len(self.prev+self.prev_recurrent):
+			inp_shape = tuple(self.shape[1:])
+			kernel_shape = tuple(self.kernel_shape[1:])
+			index_input = (self.prev_recurrent+self.prev).index(layer)
+			pad = ((0,0),(0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
+		else:
+			inp_shape = self.shape
+			kernel_shape = self.kernel_shape
+			pad = ((0,0),)+tuple([(x,x)for x in np.subtract(self.kernel_shape, 1)])
+
 		result = 0
 		for f in range(self.nb_filters):
-			np.set_printoptions(precision=4)
 			kk = self.get_error(t=t, f=f)
-			pad = tuple([(x,x)for x in np.subtract(self.kernel_shape, 1)])
-			mat = np.lib.pad(kk, ((0,0),)+pad, 'constant', constant_values=0)
-			for i in range(len(self.kernel_shape)):
+			mat = np.lib.pad(kk, pad, 'constant', constant_values=0)
+			if self.W[0].shape[0] == len(self.prev+self.prev_recurrent):
+				mat = mat[:,0,...]
+			for i in range(len(kernel_shape)):
 				mat = np.flip(mat,axis=i+1)
-			shape = (mat.shape[0],) + self.kernel_shape + self.shape
+			shape = (mat.shape[0],) + kernel_shape + inp_shape
 			strides = tuple([mat.strides[0]]) +  mat.strides[1:] + mat.strides[1:]
 			mat = np.lib.stride_tricks.as_strided(mat, shape=shape, strides=strides)
-			for i in range(len(self.kernel_shape)):
-				mat = np.flip(mat,axis=i+1+len(self.kernel_shape))
+			for i in range(len(kernel_shape)):
+				mat = np.flip(mat,axis=i+1+len(kernel_shape))
 			chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
-			result += np.einsum(chars[1:len(self.W[f].shape)+1]+','+chars+'->a'+chars[1+len(self.W[f].shape):], self.W[f], mat)
+			if self.W[0].shape[0] == len(self.prev+self.prev_recurrent):
+				result += np.einsum(chars[1:len(self.W[f].shape[1:])+1]+','+chars+'->a'+chars[1+len(self.W[f].shape[1:]):], self.W[f][index_input,...], mat)
+			else:
+				result += np.einsum(chars[1:len(self.W[f].shape)+1]+','+chars+'->a'+chars[1+len(self.W[f].shape):], self.W[f], mat)
 		return result.reshape(result.shape[0], layer.get_Output_dim())
 
 	def backprop_error(self,t=0):
@@ -885,18 +902,18 @@ class Convolution(Layer):
 		self.a = self.a + [out]
 		return out
 
-	# def copy(self):
-	# 	return Fully_Connected(self.output_dim, self.act_f.name, self.name)
+	def copy(self):
+		return Convolution(self.shape, self.kernel_shape, self.nb_filters, self.name)
 
-	# def __save__dict__(self):
-	# 	return {
-	# 		'W': self.W,
-	# 		'b': self.b
-	# 	}, [self.output_dim, self.act_f.name, self.name]
+	def __save__dict__(self):
+		return {
+			'W': self.W,
+			'b': self.b
+		}, [self.shape, self.kernel_shape, self.nb_filters, self.name]
 
-	# def __load__dict__(self, d):
-	# 	self.W = d['W']
-	# 	self.b = d['b']
+	def __load__dict__(self, d):
+		self.W = d['W']
+		self.b = d['b']
 
 
 class Activation_Layer(Layer):
@@ -953,17 +970,12 @@ class Activation_Layer(Layer):
 		self.a = self.a + [out]
 		return out
 
-	# def copy(self):
-	# 	return Fully_Connected(self.output_dim, self.act_f.name, self.name)
+	def copy(self):
+		return Activation_Layer(self.act_f.name, self.name)
 
-	# def __save__dict__(self):
-	# 	return {
-	# 		'W': self.W,
-	# 		'b': self.b
-	# 	}, [self.output_dim, self.act_f.name, self.name]
+	def __save__dict__(self):
+		return {}, [self.act_f.name, self.name]
 
-	# def __load__dict__(self, d):
-	# 	self.W = d['W']
-	# 	self.b = d['b']
-
-	
+	def __load__dict__(self, d):
+		pass
+		

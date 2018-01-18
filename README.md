@@ -11,7 +11,8 @@ Next steps:
 • Stage 1:
 - [X] Minibatching
 - [X] Modify the softmax activation function
-- [X] Add covolution layer
+- [X] Add covolutional layer
+- [ ] Let convolutonal layers accept many inputs with different number of filters
 - [X] Change the shape order of inputs: (examples, feats)
 - [ ] Change the order of inputs and time
 - [ ] Improve speed (do inp adition before multiplication)

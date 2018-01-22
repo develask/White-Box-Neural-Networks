@@ -112,7 +112,7 @@ class Layer:
 
 	def reset(self, minibatch_size):
 		if len(self.next_rercurrent)>0:
-			self.a = [np.zeros((self.output_dim,minibatch_size))]
+			self.a = [np.zeros((minibatch_size, self.output_dim))]
 		else:
 			self.a = []
 		self.error = []
@@ -1019,9 +1019,6 @@ class Loss(Layer):
 	def get_error(self, t=0):
 		assert False, "no error in loss layers"
 
-	def get_Output_dim(self):
-		return self.output_dim
-
 	def get_error_contribution(self, layer, t=0):
 		if self.desired_output is not None:
 			return self.grad(self.prev[0].get_Output(), self.desired_output)
@@ -1054,13 +1051,83 @@ class Loss(Layer):
 		return out
 
 	def copy(self):
-		raise NotImplementedError( "Should have implemented this" )
+		return Loss(self.loss, self.name)
 
 	def __save__dict__(self):
-		raise NotImplementedError( "Should have implemented this" )
+		return {}, [self.loss, self.name]
 
 	def __load__dict__(self, d):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
+		
+
+class Dropout(Layer):
+	def __init__(self, probability, name):
+		super(Dropout, self).__init__(name)
+		self.probability = probability
+		self.output_dim = None
+
+	def get_Output_dim(self):
+		if self.output_dim == None:
+			self.output_dim = sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)])
+		return self.output_dim
+
+	def get_data_of_layer(self, x, layer):
+		i = (self.prev_recurrent+self.prev).index(layer)
+		init = sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)[:i]])
+		end = init+layer.get_Output_dim()
+		return x[:,init:end]
+
+	def get_error_contribution(self, layer, t=0):
+		return self.get_data_of_layer(self.get_error(t=t),layer)*self.get_data_of_layer(self.get_Output(t=t),layer)
+
+	def backprop_error(self,t=0):
+		#  this function will be used during the BP. to calculate the error
+		aux = 0
+		if t != 0:
+			for layer in self.next_rercurrent:
+				aux += layer.get_error_contribution(self, t=t+1)
+		for layer in self.next:
+			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+				aux += layer.get_error_contribution(self, t=t)
+		aux = aux * self.mask
+		self.error = [aux]+self.error
+
+	def reset(self, minibatch_size):
+		if len(self.next_rercurrent)>0:
+			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
+		else:
+			self.a = []
+		self.mask = np.random.rand(minibatch_size, self.get_Output_dim()) > self.probability
+		self.error = []
+
+	def reset_grads(self):
+		pass
+
+	def compute_gradients(self):
+		pass
+
+	def apply_to_gradients(self, func):
+		pass
+
+	def update(self):
+		pass
+
+	def initialize(self):
+		pass
+
+	def prop(self, desired_output=None):
+		out = np.concatenate([l.get_Output() for l in  self.prev_recurrent + self.prev], axis = 1) * self.mask
+		self.a = self.a + [out]
+		return out
+
+	def copy(self):
+		return Dropout(self.probability, self.name)
+
+	def __save__dict__(self):
+		return {}, [self.probability, self.name]
+
+	def __load__dict__(self, d):
+		pass
 		
 
 		

@@ -171,10 +171,9 @@ class DNN():
 			self.prop_order[k].update()
 
 	def get_loss_of_data(self, data):
-		loss = 0
 		len_tr = data[1][0][0].shape[0]
 		out = self.prop(data[0].copy(), data[1].copy())
-		loss += sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(data[0])-len(data[1]):]])
+		loss = sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(data[0])-len(data[1]):]])
 		return loss/len_tr
 
 	def train_step(self, m_b):
@@ -314,23 +313,21 @@ if __name__ == '__main__':
 		outs2 = f2(inps)
 		return [[inps]], [[outs1, outs2]]
 
-	examples_train = generate_examples(100000)
+	examples_train = generate_examples(10000)
 
 	nn.SGD(examples_train, 128, 15, 0.5, 0.5)
 
 	examples_test = generate_examples(10)
 
-	print(nn.get_loss_of_data((examples_test[0], examples_test[1])))
-	y1, y2 = nn.prop(examples_test[0])[0]
-	print(y1)
-	print("--")
-	print(y2)
+	print(nn.get_loss_of_data(examples_train))
+	print(nn.get_loss_of_data(examples_test))
+	# y1, y2 = nn.prop(examples_test[0])[0]
 
-	for i in range(10):
-		print(examples_test[0][0][0][i,:],
-			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
-			'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
-		print()
+	# for i in range(10):
+	# 	print(examples_test[0][0][0][i,:],
+	# 		"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
+	# 		'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
+	# 	print()
 
 
 

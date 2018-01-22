@@ -6,43 +6,7 @@ import json
 import layers
 import os
 
-from layers import Input
-
-class Loss():
-	def __init__(self, name):
-		self.name = name
-
-	def ff(self, a, y):
-		if self.name == "mse":
-			return sum((y-a)**2)/2
-
-		elif self.name == "ce1":
-			return -(y*np.log(a+0.000001))-((1-y)*np.log(1.000001-a))
-
-		elif self.name == "ce2":
-			return -(y*np.log(a+0.000001))
-
-	def grad(self, a, y):
-		# returns the gradient with respect to all the components of a.
-		# Thus the dimension of the output np.array is the same that a, i.e. [output_dim, 1]
-		if self.name == "mse":
-			return a - y
-
-		elif self.name == "ce1":
-			if np.sum(a == 0) == 0 and np.sum(a==1) == 0:
-				# if np.isnan(-y/(a) + (1-y)/(1-a)).any():
-				# 	pass
-				return -(y/(a)) + (1-y)/(1-a)
-			else:
-				return -(y/(a+0.000001)) + (1-y)/(1.000001-a)
-
-		elif self.name == "ce2":
-			if np.sum(a == 0) == 0:
-				# if np.isnan(-y/(a) + (1-y)/(1-a)).any():
-				# 	pass
-				return -(y/(a))
-			else:
-				return -(y/(a+0.000001))
+from layers import Input, Loss
 
 class DNN():
 	def __init__(self, name):
@@ -52,8 +16,7 @@ class DNN():
 		self.prev = []
 		self.next_rercurrent = []
 		self.prev_recurrent = []
-		self.output_layer = None
-		self.loss = Loss("ce1")
+		self.output_layers = []
 
 	def calculate_layer_order(self):
 		"""
@@ -106,8 +69,9 @@ class DNN():
 		for layer in self.prop_order:
 			if init_layers:
 				layer.initialize()
-			if len(layer.next) == 0:
-				self.output_layer = layer
+			if isinstance(layer, Loss):
+				self.output_layers.append(layer)
+
 
 		found = False
 		self.last_rec_idx = 0
@@ -144,29 +108,41 @@ class DNN():
 		self.inputs[idx].prev = layer
 
 	def get_Output(self, t=0):
-		return self.output_layer.get_Output(t=t)
+		return [l.get_Output(t=t) for l in self.output_layers]
 
-	def prop(self, inp):
+	def prop(self, inp, desired_output=None):
 		for layer in self.prop_order:
 			layer.reset(inp[0][0].shape[0])
 		out = []
-		for inp_t in inp:
-			inp_t_cop = inp_t.copy()
-			out.append([layer.prop(inp_t_cop.pop(0)) if isinstance(layer, Input) else layer.prop() for layer in self.prop_order][-1])
+		out_t_cop = None
+		for t in range(len(inp)):
+			inp_t_cop = inp[t].copy()
+			if desired_output and t - (len(inp)-len(desired_output)) >= 0:
+				out_t_cop = desired_output[t - (len(inp)-len(desired_output))].copy()
+			for layer in self.prop_order:
+				if isinstance(layer, Input) or (isinstance(layer, Loss) and out_t_cop):
+					if isinstance(layer, Input):
+						layer.prop(inp_t_cop.pop(0))
+					else:
+						layer.prop(out_t_cop.pop(0))
+				else:
+					layer.prop()
+
+			out.append(self.get_Output())
 		return out
 
 	def backprop(self, inp, desired_output):
-		out = self.prop(inp.copy())[-1]
+		out = self.prop(inp.copy(), desired_output)
 
-		self.prop_order[-1].set_loss_error(self.loss.grad(self.prop_order[-1].get_Output(t=0), desired_output))
-
-		for layer in self.prop_order[-2:len(self.inputs)-1:-1]:
-			layer.backprop_error(t=0)
-
-		for t in range(-1,-len(inp),-1):
-			# We don't have to compute the errors in the output layers until a Recurren layer appears
-			for layer in self.prop_order[self.last_rec_idx:len(self.inputs)-1:-1]:
-				layer.backprop_error(t=t)
+		for t in range(0,-len(inp),-1):
+			for layer in self.prop_order[-1:len(self.inputs)-1:-1]:
+				if isinstance(layer, layers.Loss):
+					if t <= -len(desired_output):
+						layer.backprop_error(t=t, desired_output=None)
+					else:
+						layer.backprop_error(t=t, desired_output=desired_output[t-1][self.output_layers.index(layer)])
+				else:
+					layer.backprop_error(t=t)
 
 		for layer in self.prop_order[:len(self.inputs)-1:-1]:
 			layer.compute_gradients()
@@ -181,13 +157,12 @@ class DNN():
 			self.prop_order[k].apply_to_gradients(func)
 
 	def get_minibach_grad(self, mini_batch):
-		loss = 0
 		self.reset_gradients()
 		out = self.backprop(*mini_batch)
-		loss += np.sum(self.loss.ff(out,mini_batch[1]))
+		loss = sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(mini_batch[0])-len(mini_batch[1]):]])
 
 		# Normalizar los gradientes
-		self.apply_to_gradients(lambda grad: grad/mini_batch[1].shape[0])
+		self.apply_to_gradients(lambda grad: grad/mini_batch[1][0][0].shape[0])
 		return loss
 
 	def update_model(self):
@@ -197,9 +172,9 @@ class DNN():
 
 	def get_loss_of_data(self, data):
 		loss = 0
-		len_tr = data[1].shape[0]
-		out = self.prop(data[0].copy())
-		loss += np.sum(self.loss.ff(out[-1],data[1]))
+		len_tr = data[1][0][0].shape[0]
+		out = self.prop(data[0].copy(), data[1].copy())
+		loss += sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(data[0])-len(data[1]):]])
 		return loss/len_tr
 
 	def train_step(self, m_b):
@@ -214,7 +189,7 @@ class DNN():
 		if nb_epochs != 1:
 			dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
 
-		nb_training_examples = training_data[1].shape[0]
+		nb_training_examples = training_data[1][0][0].shape[0]
 		indexes = np.arange(nb_training_examples)
 
 		for j in range(nb_epochs):
@@ -222,7 +197,8 @@ class DNN():
 
 			random.shuffle(indexes)
 			for i in range(0,nb_training_examples, batch_size):
-				m_b = ([[input_[indexes[i:i+batch_size],:] for input_ in time_step] for time_step in training_data[0]], training_data[1][indexes[i:i+batch_size],:])
+				m_b = ([[input_[indexes[i:i+batch_size],:] for input_ in time_step] for time_step in training_data[0]], 
+					[[output_[indexes[i:i+batch_size],:] for output_ in time_step] for time_step in training_data[1]])
 				loss += self.train_step(m_b)
 
 			if func is not None:
@@ -274,32 +250,48 @@ if __name__ == '__main__':
 	import math
 	import time
 
-	from layers import Fully_Connected, LSTM, Softmax, Activation_Layer
+	from layers import Fully_Connected, LSTM, Softmax, Activation_Layer, Loss
 	
 	nn = DNN("minibatching")
-	nn.loss = Loss("ce2")
 
 	x = Input(4, "x")
-	h1 = Fully_Connected(40,"linear", "h1")
-	a1 = Activation_Layer("relu", "a1")
-	h2 = Fully_Connected(40,"linear", "h2")
-	a2 = Activation_Layer("relu", "a2")
-	# h3 = Fully_Connected(2,"linear", "h3")
-	# a3 = Activation_Layer("softmax", "a3")
-	h3 = Softmax(2,"kkkk")
+	h1 = Fully_Connected(10,"linear", "h1")
+	a1 = Activation_Layer("sigmoid", "a1")
+
+	h2 = Fully_Connected(10,"linear", "h2")
+	a2 = Activation_Layer("sigmoid", "a2")
+
+	h3 = Fully_Connected(10,"linear", "h3")
+	a3 = Activation_Layer("sigmoid", "a3")
+
+	sm4 = Softmax(2,"sm1")
+	sm5 = Fully_Connected(1,"sigmoid", "sigmoid_out")
+
+	loss1 = Loss("ce1", "loss1")
+	loss2 = Loss("ce1", "loss2")
 
 	x.addNext(h1)
 	h1.addNext(a1)
+
 	a1.addNext(h2)
 	h2.addNext(a2)
-	a2.addNext(h3)
-	# h3.addNext(a3)
+
+	a1.addNext(h3)
+	h3.addNext(a3)
+
+	a2.addNext(sm4)
+	sm4.addNext(loss1)
+
+	a3.addNext(sm5)
+	sm5.addNext(loss2)
+
+
 
 	nn.add_inputs(x)
 
 	nn.initialize()
 
-	def f(inps):
+	def f1(inps):
 		x = inps[:,0]
 		y = inps[:,1]
 		z = inps[:,2]
@@ -308,19 +300,37 @@ if __name__ == '__main__':
 		return np.concatenate((a, 1-a), axis=1)
 		# return np.concatenate((a/4, 3*a/4, (1-a)/4, 3*(1-a)/4), axis=1)
 
+	def f2(inps):
+		x = inps[:,0]
+		y = inps[:,1]
+		z = inps[:,2]
+		v = inps[:,3]
+		a = (np.cos(x*y-(v+2.3*x))**2)[:,np.newaxis]
+		return a#np.concatenate((a, 1-a), axis=1)
+
 	def generate_examples(nb_examples):
 		inps = np.random.rand(nb_examples,4)
-		outs = f(inps)
-		return [[inps]], outs
+		outs1 = f1(inps)
+		outs2 = f2(inps)
+		return [[inps]], [[outs1, outs2]]
 
-	examples_train = generate_examples(500000)
+	examples_train = generate_examples(100000)
 
-	nn.SGD(examples_train, 128, 10, 0.5, 0.5)
+	nn.SGD(examples_train, 128, 15, 0.5, 0.5)
 
 	examples_test = generate_examples(10)
-	y = nn.prop(examples_test[0])[-1]
+
+	print(nn.get_loss_of_data((examples_test[0], examples_test[1])))
+	y1, y2 = nn.prop(examples_test[0])[0]
+	print(y1)
+	print("--")
+	print(y2)
+
 	for i in range(10):
-		print(examples_test[0][0][0][i,:], "\n\t--> R", examples_test[1][i,:], "\n\t    P", y[i,:])
+		print(examples_test[0][0][0][i,:],
+			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
+			'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
+		print()
 
 
 

@@ -21,7 +21,7 @@ TODO list:
 - [X] RNN with outputs every time step
 - [X] Multiple output layers
 - [X] Convolution step/stride
-- [ ] Parameter sharing
+- [X] Parameter sharing
 - [ ] Implement other optimization techniques
 - [ ] Dropout
 - [ ] Activation functions (softmax included) out of the Fully_Connected layer

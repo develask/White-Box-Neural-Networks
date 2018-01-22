@@ -18,9 +18,9 @@ TODO list:
 - [ ] Improve speed (do inp adition before multiplication)
 
 • Stage 2:
-- [ ] RNN with outputs every time step
-- [ ] Multiple output layers
-- [ ] Convolution step/stride
+- [X] RNN with outputs every time step
+- [X] Multiple output layers
+- [X] Convolution step/stride
 - [ ] Parameter sharing
 - [ ] Implement other optimization techniques
 - [ ] Dropout

@@ -18,12 +18,12 @@ TODO list:
 - [ ] Improve speed (do inp adition before multiplication)
 
 • Stage 2:
-- [ ] RNN with outputs every time step
-- [ ] Multiple output layers
-- [ ] Convolution step/stride
-- [ ] Parameter sharing
+- [X] RNN with outputs every time step
+- [X] Multiple output layers
+- [X] Convolution step/stride
+- [X] Parameter sharing
 - [ ] Implement other optimization techniques
-- [ ] Dropout
+- [X] Dropout
 - [ ] Activation functions (softmax included) out of the Fully_Connected layer
 - [ ] Control initializations in a more apropriate way
 - [ ] High Level API/Script to create more complex net (recursive recurrences, seq2seq)

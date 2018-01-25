@@ -3,41 +3,6 @@ import initializers
 import os
 import json
 
-class Activation_Function():
-	def __init__(self, name):
-		self.name = name
-		if self.name == "sigmoid":
-			def ff_(z):
-				return 1 / (1 + np.exp(-z))
-			self.ff = ff_
-			def derivative_ff_(a):
-				return a*(1-a)
-			self.derivative_ff = derivative_ff_
-
-
-		elif self.name == "softmax":
-			def ff_ (z):
-				exp = np.exp(z)
-				return exp/np.sum(exp, axis=1)[:,np.newaxis]
-			self.ff = ff_
-			def derivative_ff_(a):
-				return a*(1-a)
-			self.derivative_ff = derivative_ff_
-
-		elif self.name == "relu":
-			self.ff = lambda z: np.maximum(z, 0)
-			self.derivative_ff = lambda a: np.sign(a)
-
-		elif self.name == "leaky_relu":
-			self.ff = lambda z: np.maximum(z, 0)
-			self.derivative_ff = lambda a: np.maximum(np.sign(a), 0.01)
-
-		elif self.name == "linear":
-			self.ff = lambda z: z
-			self.derivative_ff = lambda a: np.full(a.shape, 1)
-		else:
-			raise ValueError("Not defined activation function")
-
 class Layer:
 	def __init__(self, name):
 		self.next = []
@@ -205,7 +170,7 @@ class Input(Layer):
 
 	def prop(self, x_labels):
 		self.a = self.a + [x_labels]
-		return self.a
+		return x_labels
 
 	def copy(self):
 		return Input(self.input_dim, self.name)
@@ -217,24 +182,24 @@ class Input(Layer):
 		pass
 
 class Fully_Connected(Layer):
-	def __init__(self, output_dim, activation_function, name):
+	def __init__(self, output_dim, name):
 		super(Fully_Connected, self).__init__(name)
 		self.output_dim = output_dim
-		self.act_f = Activation_Function(activation_function)
 
 	def initialize(self):
 		self.W = [self.initializer.get((l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
 		self.b = self.initializer.get((1, self.output_dim))
 		self.initialize_done = True
 
-	def W_of_layer(self, layer):
+	def __W_of_layer__(self, layer):
 		return self.W[(self.prev_recurrent + self.prev).index(layer)]
 
 	def get_error_contribution(self, layer, t=0):
 		return np.dot(
-			self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t)),
-			np.transpose(self.W_of_layer(layer))
+			self.get_error(t=t),
+			np.transpose(self.__W_of_layer__(layer))
 		)
+
 	def backprop_error(self, t=0):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
@@ -255,7 +220,7 @@ class Fully_Connected(Layer):
 		b_grad_aux = 0
 		W_grad_aux = [0]*len(self.W_grad)
 		for t in range(0,-num_t, -1):
-			aux = self.get_error(t=t)*self.act_f.derivative_ff(self.get_Output(t=t))
+			aux = self.get_error(t=t)
 			b_grad_aux += aux
 			W_grad_aux = list(map(lambda x,y: x+y,
 				W_grad_aux,
@@ -266,7 +231,6 @@ class Fully_Connected(Layer):
 		self.W_grad = list(map(lambda x,y: x+y,
 				self.W_grad, W_grad_aux
 		))
-
 
 	def apply_to_gradients(self, func):
 		self.b_grad = func(self.b_grad)
@@ -289,81 +253,22 @@ class Fully_Connected(Layer):
 		for l in self.prev_recurrent + self.prev:
 			inp += np.dot(l.get_Output(), self.W[i])
 			i+=1
-		self.z = inp + self.b
-		out = self.act_f.ff(self.z)
+		out = inp + self.b
 		self.a = self.a + [out]
 		return out
 
 	def copy(self):
-		return Fully_Connected(self.output_dim, self.act_f.name, self.name)
-
-	def __save__dict__(self):
-		return {
-			'W': self.W,
-			'b': self.b
-		}, [self.output_dim, self.act_f.name, self.name]
-
-	def __load__dict__(self, d):
-		self.W = d['W']
-		self.b = d['b']
-
-class Softmax(Fully_Connected):
-	def __init__(self, output_dim, name):
-		class Act_func():
-			def __init__(self, name):
-				self.name = name
-			def ff(self, z):
-				exp = np.exp(z)
-				return exp/np.sum(exp, axis=1)[:,np.newaxis]
-			def derivative_ff(self, a):
-				def my_func(x):
-					x=x[np.newaxis]
-					a = -np.dot(x.T,x)
-					np.fill_diagonal(a, x*(1-x))
-					return a
-				b = np.apply_along_axis(my_func, 1, a)
-				return b
-
-		activation_function = Act_func("softmax")
-		super(Softmax, self).__init__(output_dim, "sigmoid", name)
-		self.act_f = activation_function
-
-	def get_error_contribution(self, layer, t=0):
-		return np.dot(
-			np.einsum('ij,ijk->ik',
-				self.get_error(t=t),
-				self.act_f.derivative_ff(self.get_Output(t=t))
-			),
-			np.transpose(self.W_of_layer(layer))
-		)
-
-	def compute_gradients(self):
-		num_t = len(self.error)
-		b_grad_aux = 0
-		W_grad_aux = [0]*len(self.W_grad)
-		for t in range(0,-num_t, -1):
-			b_grad_aux += np.einsum('ij,ijk->ik',
-							self.get_error(t=t),
-							self.act_f.derivative_ff(self.get_Output(t=t))
-							)
-			W_grad_aux = list(map(lambda x,y: x+y,
-				W_grad_aux,
-				[np.dot(np.transpose(l.get_Output(t=t-1)), np.einsum('ij,ijk->ik', self.get_error(t=t),self.act_f.derivative_ff(self.get_Output(t=t)))) for l in self.prev_recurrent] +
-				[np.dot(np.transpose(l.get_Output(t=t)), np.einsum('ij,ijk->ik', self.get_error(t=t),self.act_f.derivative_ff(self.get_Output(t=t)))) for l in self.prev]
-			))
-		self.b_grad += b_grad_aux
-		self.W_grad = list(map(lambda x,y: x+y,
-				self.W_grad, W_grad_aux
-		))
-
-	def copy(self):
-		return Softmax(self.output_dim, self.name)
+		return Fully_Connected(self.output_dim, self.name)
 
 	def __save__dict__(self):
 		return {
 			'W': self.W,
 			'b': self.b
 		}, [self.output_dim, self.name]
+
+	def __load__dict__(self, d):
+		self.W = d['W']
+		self.b = d['b']
 
 class LSTM(Layer):
 	def __init__(self, num_cel, name):
@@ -382,9 +287,6 @@ class LSTM(Layer):
 
 	def __dev_tanh__(self, a):
 		return 1 - np.tanh(a)**2
-
-	def get_Output(self, t=0):
-		return self.a[t-1]
 
 	def get_i(self, t=0):
 		return self.i[t-1]
@@ -475,8 +377,6 @@ class LSTM(Layer):
 
 		# error in i
 		self.error_i = [self.get_c_error(t=t)*self.__tanh__(self.get_c(t=t))] + self.error_i
-
-
 
 	def reset_grads(self):
 		self.W_i_alprevs_grads = [0]*len(self.layers)
@@ -650,7 +550,6 @@ class LSTM(Layer):
 		self.b_f = self.initializer.get((1, self.get_Output_dim()))
 		self.b_c = self.initializer.get((1, self.get_Output_dim()))
 		self.b_o = self.initializer.get((1, self.get_Output_dim()))
-
 
 	def prop(self):
 		len_prev_rec = len(self.prev_recurrent)
@@ -836,7 +735,6 @@ class Convolution(Layer):
 		return result.reshape(result.shape[0], layer.get_Output_dim())
 
 	def backprop_error(self,t=0):
-		 # this function will be used during the BP. to calculate the error
 		aux = 0
 		if t != 0:
 			for layer in self.next_rercurrent:
@@ -858,7 +756,6 @@ class Convolution(Layer):
 		for f in range(self.nb_filters):
 			for t in range(0,-num_t, -1):
 				self.W_grad[f] += np.einsum('a'+chars[1+len(self.kernel_shape):]+','+chars+'->'+chars[1:len(self.kernel_shape)+1], self.get_error(t=t,f=f), self.x_M)
-
 
 	def apply_to_gradients(self, func):
 		self.b_grad = list(map(func, self.b_grad))
@@ -903,11 +800,59 @@ class Convolution(Layer):
 		self.W = d['W']
 		self.b = d['b']
 
-
-class Activation_Layer(Layer):
+class Activation(Layer):
 	def __init__(self, activation_function, name):
-		super(Activation_Layer, self).__init__(name)
-		self.act_f = Activation_Function(activation_function)
+		super(Activation, self).__init__(name)
+		self.set_activation_function(activation_function)
+
+	def set_activation_function(self, activation_function):
+		self.act_fun = activation_function
+		if activation_function == "sigmoid":
+			self.ff = lambda z: 1 / (1 + np.exp(-z))
+			self.derivative_ff = lambda a: a*(1-a)
+			self.multiplication = lambda a,b: a*b
+
+		elif activation_function == "dummy_softmax":
+			def ff_ (z):
+				exp = np.exp(z)
+				return exp/np.sum(exp, axis=1)[:,np.newaxis]
+			self.ff = ff_
+			self.derivative_ff = lambda a: a*(1-a)
+			self.multiplication = lambda a,b: a*b
+
+		elif activation_function == "softmax":
+			def ff(z):
+				exp = np.exp(z)
+				return exp/np.sum(exp, axis=1)[:,np.newaxis]
+			self.ff = ff
+			def softmax_calc(x):
+				x=x[np.newaxis]
+				a = -np.dot(x.T,x)
+				np.fill_diagonal(a, x*(1-x))
+				return a
+			self.softmax_calc = softmax_calc
+			def derivative_ff(a):
+				b = np.apply_along_axis(self.softmax_calc, 1, a)
+				return b
+			self.derivative_ff = derivative_ff
+			self.multiplication = lambda a,b: np.einsum('ij,ijk->ik', a, b)
+
+		elif activation_function == "relu":
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivative_ff = lambda a: np.sign(a)
+			self.multiplication = lambda a,b: a*b
+
+		elif activation_function == "leaky_relu":
+			self.ff = lambda z: np.maximum(z, 0)
+			self.derivative_ff = lambda a: np.maximum(np.sign(a), 0.01)
+			self.multiplication = lambda a,b: a*b
+
+		elif activation_function == "linear":
+			self.ff = lambda z: z
+			self.derivative_ff = lambda a: np.full(a.shape, 1)
+			self.multiplication = lambda a,b: a*b
+		else:
+			raise ValueError("Not defined activation function")
 
 	def initialize(self):
 		self.initialize_done = True
@@ -922,7 +867,10 @@ class Activation_Layer(Layer):
 		return x[:,init:end]
 
 	def get_error_contribution(self, layer, t=0):
-		return self.get_data_of_layer(self.get_error(t=t),layer)*self.get_data_of_layer(self.act_f.derivative_ff(self.get_Output(t=t)),layer)
+		return self.get_data_of_layer(self.multiplication(
+					self.get_error(t=t),
+					self.derivative_ff(self.get_Output(t=t))
+				), layer)
 
 	def backprop_error(self,t=0):
 		#  this function will be used during the BP. to calculate the error
@@ -941,7 +889,6 @@ class Activation_Layer(Layer):
 	def compute_gradients(self):
 		pass
 
-
 	def apply_to_gradients(self, func):
 		pass
 
@@ -949,15 +896,15 @@ class Activation_Layer(Layer):
 		pass
 
 	def prop(self):
-		out = self.act_f.ff(np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=0))
+		out = self.ff(np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=0))
 		self.a = self.a + [out]
 		return out
 
 	def copy(self):
-		return Activation_Layer(self.act_f.name, self.name)
+		return Activation_Layer(self.act_fun, self.name)
 
 	def __save__dict__(self):
-		return {}, [self.act_f.name, self.name]
+		return {}, [self.act_fun, self.name]
 
 	def __load__dict__(self, d):
 		pass
@@ -1058,7 +1005,6 @@ class Loss(Layer):
 
 	def __load__dict__(self, d):
 		pass
-		
 
 class Dropout(Layer):
 	def __init__(self, probability, name):

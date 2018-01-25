@@ -249,22 +249,24 @@ if __name__ == '__main__':
 	import math
 	import time
 
-	from layers import Fully_Connected, LSTM, Softmax, Activation_Layer, Loss
+	from layers import Fully_Connected, LSTM, Softmax, Activation, Loss
 	
 	nn = DNN("minibatching")
 
 	x = Input(4, "x")
-	h1 = Fully_Connected(10,"linear", "h1")
-	a1 = Activation_Layer("sigmoid", "a1")
+	h1 = Fully_Connected(10, "h1")
+	a1 = Activation("sigmoid", "a1")
 
-	h2 = Fully_Connected(10,"linear", "h2")
-	a2 = Activation_Layer("sigmoid", "a2")
+	h2 = Fully_Connected(10, "h2")
+	a2 = Activation("sigmoid", "a2")
 
-	h3 = Fully_Connected(10,"linear", "h3")
-	a3 = Activation_Layer("sigmoid", "a3")
+	h3 = Fully_Connected(10, "h3")
+	a3 = Activation("sigmoid", "a3")
 
-	sm4 = Softmax(2,"sm1")
-	sm5 = Fully_Connected(1,"sigmoid", "sigmoid_out")
+	sm4 = Fully_Connected(2,"sm1")
+	a4 = Activation("softmax", "a4")
+	sm5 = Fully_Connected(1, "sigmoid_out")
+	a5 = Activation("sigmoid", "a5")
 
 	loss1 = Loss("ce1", "loss1")
 	loss2 = Loss("ce1", "loss2")
@@ -279,10 +281,12 @@ if __name__ == '__main__':
 	h3.addNext(a3)
 
 	a2.addNext(sm4)
-	sm4.addNext(loss1)
+	sm4.addNext(a4)
+	a4.addNext(loss1)
 
 	a3.addNext(sm5)
-	sm5.addNext(loss2)
+	sm5.addNext(a5)
+	a5.addNext(loss2)
 
 
 
@@ -313,7 +317,7 @@ if __name__ == '__main__':
 		outs2 = f2(inps)
 		return [[inps]], [[outs1, outs2]]
 
-	examples_train = generate_examples(10000)
+	examples_train = generate_examples(100000)
 
 	nn.SGD(examples_train, 128, 15, 0.5, 0.5)
 
@@ -321,13 +325,13 @@ if __name__ == '__main__':
 
 	print(nn.get_loss_of_data(examples_train))
 	print(nn.get_loss_of_data(examples_test))
-	# y1, y2 = nn.prop(examples_test[0])[0]
+	y1, y2 = nn.prop(examples_test[0])[0]
 
-	# for i in range(10):
-	# 	print(examples_test[0][0][0][i,:],
-	# 		"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
-	# 		'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
-	# 	print()
+	for i in range(10):
+		print(examples_test[0][0][0][i,:],
+			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
+			'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
+		print()
 
 
 

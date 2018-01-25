@@ -681,57 +681,58 @@ class Convolution(Layer):
 	def __init__(self, shape, kernel, step, nb_filters, name):
 		super(Convolution, self).__init__(name)
 		assert len(shape) == len(kernel)
+		assert len(shape) == len(step)
 		assert sum([shape[s]>=kernel[s] for s in range(len(shape))]) == len(shape)
 		# assert sum(map(lambda x: x%2!=1, kernel))==0
 		self.shape = tuple(shape)
-		self.kernel_shape = tuple(kernel)
+		self.kernel_shape = (nb_filters,)+tuple(kernel)
 		self.step = tuple(step)
 		self.nb_filters = nb_filters
-		self.output_dim = np.multiply.reduce((np.subtract(self.shape, self.kernel_shape)//self.step)+1) * self.nb_filters
+		self.output_dim = np.multiply.reduce((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1) * self.nb_filters
 
 	def initialize(self):
 		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape)
 		assert len(self.prev_recurrent + self.prev)==1 or len(self.prev_recurrent + self.prev) == self.shape[0]
 		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
-		self.W = [self.initializer.get(self.kernel_shape) for k in range(self.nb_filters)]
+		self.W = self.initializer.get(self.kernel_shape)
 		self.b = self.initializer.get((self.nb_filters,))
 		self.initialize_done = True
 
-	def get_error(self, t=0, f=0):
-		return self.error[t-1][f].reshape((self.error[t-1][f].shape[0],)+tuple((np.subtract(self.shape, self.kernel_shape)//self.step)+1))
+	def get_error(self, t=0):
+		return self.error[t-1].reshape((self.error[t-1].shape[0], self.nb_filters)+tuple((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1))
 
 	def get_error_contribution(self, layer, t=0):
 		# dimension = loss_gradient.shape[1]//self.nb_filters
 		# self.error.append([loss_gradient[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)])
 		if len(self.prev+self.prev_recurrent) != 1:
-			inp_shape = tuple(self.shape[1:])
+			inp_shape = tuple(self.shape[2:])
 			kernel_shape = tuple(self.kernel_shape[1:])
 			index_input = (self.prev_recurrent+self.prev).index(layer)
-			pad = ((0,0),(0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
+			pad = ((0,0) (0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape[1:], 1)])
 		else:
 			inp_shape = self.shape
-			kernel_shape = self.kernel_shape
-			pad = ((0,0),)+tuple([(x,x)for x in np.subtract(self.kernel_shape, 1)])
+			kernel_shape = self.kernel_shape[1:]
+			pad = ((0,0), (0,0))+tuple([(x,x)for x in np.subtract(self.kernel_shape[1:], 1)])
 
-		result = 0
-		for f in range(self.nb_filters):
-			kk = np.zeros((self.x_M.shape[0],)+tuple(np.subtract(self.shape, self.kernel_shape)+1))
-			kk[[slice(None)]+[ slice(None,None,x) for x in self.step]] = self.get_error(t=t, f=f)
-			mat = np.lib.pad(kk, pad, 'constant', constant_values=0)
-			if len(self.prev+self.prev_recurrent) != 1:
-				mat = mat[:,0,...]
-			for i in range(len(kernel_shape)):
-				mat = np.flip(mat,axis=i+1)
-			shape = (mat.shape[0],) + kernel_shape + inp_shape
-			strides = tuple([mat.strides[0]]) +  mat.strides[1:] + mat.strides[1:]
-			mat = np.lib.stride_tricks.as_strided(mat, shape=shape, strides=strides)
-			for i in range(len(kernel_shape)):
-				mat = np.flip(mat,axis=i+1+len(kernel_shape))
-			chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
-			if len(self.prev+self.prev_recurrent) != 1:
-				result += np.einsum(chars[1:len(self.W[f].shape[1:])+1]+','+chars+'->a'+chars[1+len(self.W[f].shape[1:]):], self.W[f][index_input,...], mat)
-			else:
-				result += np.einsum(chars[1:len(self.W[f].shape)+1]+','+chars+'->a'+chars[1+len(self.W[f].shape):], self.W[f], mat)
+
+		kk = np.zeros((self.x_M.shape[0],self.nb_filters)+tuple(np.subtract(self.shape, self.kernel_shape[1:])+1))
+		kk[[slice(None), slice(None)]+[ slice(None,None,x) for x in self.step]] = self.get_error(t=t)
+		mat = np.lib.pad(kk, pad, 'constant', constant_values=0)
+		if len(self.prev+self.prev_recurrent) != 1:
+			mat = mat[:,:,0,...]
+		for i in range(len(kernel_shape)):
+			mat = np.flip(mat,axis=i+2)
+		shape = (mat.shape[0], mat.shape[1]) + kernel_shape + inp_shape
+		strides = tuple([mat.strides[0], mat.strides[1]]) +  mat.strides[2:] + mat.strides[2:]
+		mat = np.lib.stride_tricks.as_strided(mat, shape=shape, strides=strides)
+		for i in range(len(kernel_shape)):
+			mat = np.flip(mat,axis=i+2+len(kernel_shape))
+		chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
+		if len(self.prev+self.prev_recurrent) != 1:
+			# mirar como esta
+			result = np.einsum(chars[2:len(self.W.shape[2:])+1]+','+chars+'->a'+chars[2+len(self.W.shape[2:]):], self.W[:,index_input,...], mat)
+		else:
+			result = np.einsum(chars[1:len(self.W.shape)+1]+','+chars+'->a'+chars[1+len(self.W.shape):], self.W, mat)
 		return result.reshape(result.shape[0], layer.get_Output_dim())
 
 	def backprop_error(self,t=0):
@@ -743,23 +744,22 @@ class Convolution(Layer):
 			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
 				aux += layer.get_error_contribution(self, t=t)
 		dimension = aux.shape[1]//self.nb_filters
-		self.error = [[aux[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)]]+self.error
+		self.error = [aux]+self.error
 
 	def reset_grads(self):
-		self.b_grad = [0] * self.nb_filters
-		self.W_grad = [0] * self.nb_filters
+		self.b_grad = 0
+		self.W_grad = 0
 
 	def compute_gradients(self):
 		num_t = len(self.error)
-		self.b_grad = [sum([np.sum(self.get_error(t=t, f=f)) for t in range(0,-num_t, -1)]) for f in range(self.nb_filters)]
+		self.b_grad = np.asarray([sum([np.sum(self.get_error(t=t)[:,f,...]) for t in range(0,-num_t, -1)]) for f in range(self.nb_filters)])
 		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
-		for f in range(self.nb_filters):
-			for t in range(0,-num_t, -1):
-				self.W_grad[f] += np.einsum('a'+chars[1+len(self.kernel_shape):]+','+chars+'->'+chars[1:len(self.kernel_shape)+1], self.get_error(t=t,f=f), self.x_M)
+		for t in range(0,-num_t, -1):
+			self.W_grad += np.einsum('aF'+chars[1+len(self.kernel_shape[1:]):]+','+chars+'->F'+chars[1:len(self.kernel_shape[1:])+1], self.get_error(t=t), self.x_M)
 
 	def apply_to_gradients(self, func):
-		self.b_grad = list(map(func, self.b_grad))
-		self.W_grad = list(map(func, self.W_grad))
+		self.b_grad = func(self.b_grad)
+		self.W_grad = func(self.W_grad)
 
 	def update(self):
 		self.__update_b__()
@@ -775,26 +775,28 @@ class Convolution(Layer):
 
 	def prop(self):
 		inp = np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=1)
-		shape = (inp.shape[0],) + self.kernel_shape + tuple((np.subtract(self.shape, self.kernel_shape)//self.step)+1)
+		shape = (inp.shape[0],) + self.kernel_shape[1:] + tuple((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1)
 		strides = [inp.strides[-1]]
 		for sh in reversed(self.shape):
 			strides.insert(0, strides[0]*sh)
 		strides = (strides[0],) + tuple(strides[1:]) + tuple(np.multiply(strides[1:], self.step))
 		self.x_M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
 		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
-		out = [np.einsum(chars[1:len(self.kernel_shape)+1]+','+chars+'->a'+chars[1+len(self.kernel_shape):], self.W[k], self.x_M) + self.b[k] for k in range(self.nb_filters)]
-		out = np.concatenate([tmp.reshape(tmp.shape[0], self.output_dim//self.nb_filters) for tmp in out], axis = 1)
+		out = np.einsum('L'+chars[1:len(self.kernel_shape[1:])+1]+','+chars+'->aL'+chars[1+len(self.kernel_shape[1:]):], self.W, self.x_M)
+		for i in range(self.nb_filters):
+			out[:,i,...] += self.b[i]
+		out = out.reshape(out.shape[0], self.output_dim)
 		self.a = self.a + [out]
 		return out
 
 	def copy(self):
-		return Convolution(self.shape, self.kernel_shape, self.step, self.nb_filters, self.name)
+		return Convolution(self.shape, self.kernel_shape[1:], self.step, self.nb_filters, self.name)
 
 	def __save__dict__(self):
 		return {
 			'W': self.W,
 			'b': self.b
-		}, [self.shape, self.kernel_shape, self.step, self.nb_filters, self.name]
+		}, [self.shape, self.kernel_shape[1:], self.step, self.nb_filters, self.name]
 
 	def __load__dict__(self, d):
 		self.W = d['W']

@@ -705,15 +705,14 @@ class Convolution(Layer):
 		# dimension = loss_gradient.shape[1]//self.nb_filters
 		# self.error.append([loss_gradient[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)])
 		if len(self.prev+self.prev_recurrent) != 1:
-			inp_shape = tuple(self.shape[2:])
-			kernel_shape = tuple(self.kernel_shape[1:])
+			inp_shape = tuple(self.shape[1:])
+			kernel_shape = tuple(self.kernel_shape[2:])
 			index_input = (self.prev_recurrent+self.prev).index(layer)
-			pad = ((0,0) (0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape[1:], 1)])
+			pad = ((0,0), (0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
 		else:
 			inp_shape = self.shape
 			kernel_shape = self.kernel_shape[1:]
-			pad = ((0,0), (0,0))+tuple([(x,x)for x in np.subtract(self.kernel_shape[1:], 1)])
-
+			pad = ((0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
 
 		kk = np.zeros((self.x_M.shape[0],self.nb_filters)+tuple(np.subtract(self.shape, self.kernel_shape[1:])+1))
 		kk[[slice(None), slice(None)]+[ slice(None,None,x) for x in self.step]] = self.get_error(t=t)
@@ -729,8 +728,7 @@ class Convolution(Layer):
 			mat = np.flip(mat,axis=i+2+len(kernel_shape))
 		chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
 		if len(self.prev+self.prev_recurrent) != 1:
-			# mirar como esta
-			result = np.einsum(chars[2:len(self.W.shape[2:])+1]+','+chars+'->a'+chars[2+len(self.W.shape[2:]):], self.W[:,index_input,...], mat)
+			result = np.einsum(chars[1:len(self.W.shape[1:])+1]+','+chars+'->a'+chars[2+len(self.W.shape[2:]):], self.W[:,index_input,...], mat)
 		else:
 			result = np.einsum(chars[1:len(self.W.shape)+1]+','+chars+'->a'+chars[1+len(self.W.shape):], self.W, mat)
 		return result.reshape(result.shape[0], layer.get_Output_dim())

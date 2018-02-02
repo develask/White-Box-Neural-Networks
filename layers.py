@@ -812,6 +812,11 @@ class Activation(Layer):
 			self.derivative_ff = lambda a: a*(1-a)
 			self.multiplication = lambda a,b: a*b
 
+		elif activation_function == "tanh":
+			self.ff = lambda z: np.tanh(z)
+			elf.derivative_ff = lambda a: 1 - np.tanh(a)**2
+			self.multiplication = lambda a,b: a*b
+
 		elif activation_function == "dummy_softmax":
 			def ff_ (z):
 				exp = np.exp(z)
@@ -925,6 +930,9 @@ class Loss(Layer):
 		elif self.loss == "ce2":
 			return -(y*np.log(a+0.000001))
 
+		elif self.loss == "external":
+			return a
+
 	def grad(self, a, y):
 		# returns the gradient with respect to all the components of a.
 		# Thus the dimension of the output np.array is the same that a, i.e. [output_dim, 1]
@@ -946,6 +954,9 @@ class Loss(Layer):
 				return -(y/(a))
 			else:
 				return -(y/(a+0.000001))
+
+		elif self.loss == "external":
+			return y
 
 	def addNext(self, layer):
 		assert False, "Loss layer do not have next layers"
@@ -1071,6 +1082,117 @@ class Dropout(Layer):
 
 	def __save__dict__(self):
 		return {}, [self.probability, self.name]
+
+	def __load__dict__(self, d):
+		pass
+
+class MaxPooling(Layer):
+	def __init__(self, shape, kernel, name):
+		super(MaxPooling, self).__init__(name)
+		assert len(shape) == len(kernel)
+		assert sum([shape[s]>=kernel[s] for s in range(len(shape))]) == len(shape)
+		self.shape = tuple(shape)
+		self.kernel_shape = tuple(kernel)
+		self.output_dim = np.multiply.reduce((np.subtract(self.shape, self.kernel_shape)//self.kernel_shape)+1)
+
+	def get_Output_dim(self):
+		return self.output_dim
+
+	def get_data_of_layer(self, x, layer):
+		i = (self.prev_recurrent+self.prev).index(layer)
+		init = sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)[:i]])
+		end = init+layer.get_Output_dim()
+		return x[:,init:end]
+
+	def get_error_contribution(self, layer, t=0):
+		return self.get_data_of_layer(self.get_error(t=t),layer)#*self.get_data_of_layer(self.get_Output(t=t),layer)
+
+	def __reshape_idex__(self, k):
+		i = np.arange(0,self.shape[k]-self.kernel_shape[k]+1,self.kernel_shape[k])
+		i = np.expand_dims(i, axis=0)
+		for d in range(len(self.kernel_shape)):
+			if d < k:
+				i = np.expand_dims(i, axis=0)
+			elif d > k:
+				i = np.expand_dims(i, axis=-1)
+		return i
+
+
+
+	def backprop_error(self,t=0):
+		#  this function will be used during the BP. to calculate the error
+		aux = 0
+		if t != 0:
+			for layer in self.next_rercurrent:
+				aux += layer.get_error_contribution(self, t=t+1)
+		for layer in self.next:
+			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
+				aux += layer.get_error_contribution(self, t=t)
+		# aux = aux * self.mask
+
+		d = np.zeros((self.get_Output(t=t).shape[0],)+self.shape)
+
+		i = []
+		for k in range(len(self.kernel_shape)):
+			i.append((self.masks[t-1][k]+self.__reshape_idex__(k)).flatten())
+
+		# i.insert(0, np.tile(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
+		i.insert(0, np.repeat(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
+		d[i] = aux.flatten()
+
+		aux = d.reshape(d.shape[0], np.multiply.reduce(d.shape[1:]))
+
+		self.error = [aux]+self.error
+
+	def reset(self, minibatch_size):
+		if len(self.next_rercurrent)>0:
+			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
+		else:
+			self.a = []
+		self.masks = []
+		self.error = []
+
+	def reset_grads(self):
+		pass
+
+	def compute_gradients(self):
+		pass
+
+	def apply_to_gradients(self, func):
+		pass
+
+	def update(self):
+		pass
+
+	def initialize(self):
+		pass
+
+	def prop(self, desired_output=None):
+		out = np.concatenate([l.get_Output() for l in  self.prev_recurrent + self.prev], axis = 1)
+
+		shape_ = (out.shape[0],) + tuple((np.subtract(self.shape, self.kernel_shape)//self.kernel_shape)+1) + self.kernel_shape
+		strides = [out.strides[-1]]
+		for sh in reversed(self.shape):
+			strides.insert(0, strides[0]*sh)
+		strides = (strides[0],) + tuple(np.multiply(strides[1:], self.kernel_shape)) + tuple(strides[1:])
+		a = np.lib.stride_tricks.as_strided(out, shape=shape_, strides=strides)
+		a = a.reshape(a.shape[:-len(self.kernel_shape)]+(np.multiply.reduce(a.shape[-len(self.kernel_shape):]),))
+		self.masks.append(
+			np.unravel_index(np.argmax(a, axis = len(a.shape)-1), self.kernel_shape)
+		)
+
+		out = np.amax(a, axis = len(a.shape)-1)
+		out = out.reshape(out.shape[0], np.multiply.reduce(out.shape[1:]))
+
+		self.a = self.a + [out]
+		return out
+
+
+	def copy(self):
+		return Dropout(self.shape, self.kernel_shape, self.name)
+
+	def __save__dict__(self):
+		return {}, [self.shape, self.kernel_shape, self.name]
 
 	def __load__dict__(self, d):
 		pass

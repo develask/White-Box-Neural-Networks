@@ -206,7 +206,11 @@ class DNN():
 
 	def save(self, name = None):
 		dir_ = time.strftime(name if name is not None else self.name + "_%Y-%m-%d_%H-%M")
-		os.makedirs(dir_)
+		try:
+			os.makedirs(dir_)
+		except Exception as e:
+			dir_ = dir_+time.strftime("_%Y-%m-%d_%H-%M")
+			os.makedirs(dir_)
 		inf = {
 			'prop_order': [id(l) for l in self.prop_order]
 		}
@@ -249,7 +253,7 @@ if __name__ == '__main__':
 	import math
 	import time
 
-	from layers import Fully_Connected, LSTM, Softmax, Activation, Loss
+	from layers import Fully_Connected, LSTM, Activation, Loss
 	
 	nn = DNN("minibatching")
 
@@ -320,6 +324,7 @@ if __name__ == '__main__':
 	examples_train = generate_examples(100000)
 
 	nn.SGD(examples_train, 128, 15, 0.5, 0.5)
+
 
 	examples_test = generate_examples(10)
 

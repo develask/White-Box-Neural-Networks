@@ -62,6 +62,10 @@ class DNN():
 					self.prop_order += to_add
 			i+=1
 
+		for l_i in range(len(self.prop_order)):
+			self.prop_order[l_i].prop_idx = l_i
+
+
 	def initialize(self, init_layers = True):
 		"""Initialize each layer, and generate the layer order."""
 		if not hasattr(self, 'prop_order'):
@@ -147,7 +151,7 @@ class DNN():
 		for k in range(len(self.inputs),len(self.prop_order)):
 			self.prop_order[k].apply_to_gradients(func)
 
-	def get_minibach_grad(self, mini_batch):
+	def compute_minibatch_grad(self, mini_batch):
 		self.reset_gradients()
 		out = self.backprop(*mini_batch)
 		loss = sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(mini_batch[0])-len(mini_batch[1]):]])
@@ -168,7 +172,7 @@ class DNN():
 		return loss/len_tr
 
 	def train_step(self, m_b):
-		loss_m_b = self.get_minibach_grad(m_b)
+		loss_m_b = self.compute_minibatch_grad(m_b)
 		self.update_model()
 		return loss_m_b
 
@@ -250,18 +254,18 @@ if __name__ == '__main__':
 
 	x = Input(4, "x")
 	h1 = Fully_Connected(10, "h1")
-	a1 = Activation("sigmoid2", "a1")
+	a1 = Activation("sigmoid", "a1")
 
 	h2 = Fully_Connected(10, "h2")
-	a2 = Activation("sigmoid2", "a2")
+	a2 = Activation("sigmoid", "a2")
 
 	h3 = Fully_Connected(10, "h3")
-	a3 = Activation("sigmoid2", "a3")
+	a3 = Activation("sigmoid", "a3")
 
 	sm4 = Fully_Connected(2,"sm1")
 	a4 = Activation("softmax", "a4")
 	sm5 = Fully_Connected(1, "sigmoid_out")
-	a5 = Activation("sigmoid2", "a5")
+	a5 = Activation("sigmoid", "a5")
 
 	loss1 = Loss("ce1", "loss1")
 	loss2 = Loss("ce1", "loss2")

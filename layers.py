@@ -7,7 +7,7 @@ class Layer:
 	def __init__(self, name):
 		self.next = []
 		self.prev = []
-		self.next_rercurrent = []
+		self.next_recurrent = []
 		self.prev_recurrent = []
 		self.initialize_done = False
 		self.name = name
@@ -15,6 +15,7 @@ class Layer:
 		self.error = None
 		self.b_grad = None
 		self.W_grad = None
+		self.prop_idx = 0
 		self.initializer = initializers.RandomNormal()
 
 	def setInitializer(self, initializer):
@@ -26,7 +27,7 @@ class Layer:
 		layer.__addPrev__(self)
 
 	def addNextRecurrent(self, layer):
-		self.next_rercurrent.append(layer)
+		self.next_recurrent.append(layer)
 		layer.__addPrevRecurrent__(self)
 
 	def __addPrev__(self, layer):
@@ -69,7 +70,7 @@ class Layer:
 		raise NotImplementedError( "Should have implemented this" )
 
 	def reset(self, minibatch_size):
-		if len(self.next_rercurrent)>0:
+		if len(self.next_recurrent)>0:
 			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
 		else:
 			self.a = []
@@ -197,7 +198,7 @@ class Fully_Connected(Layer):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -214,7 +215,7 @@ class Fully_Connected(Layer):
 		for t in range(0,-num_t, -1):
 			aux = self.get_error(t=t)
 			if aux is not 0:
-				b_grad_aux += aux
+				b_grad_aux += np.sum(aux, axis=0)
 				W_grad_aux = list(map(lambda x,y: x+y,
 					W_grad_aux,
 					[np.dot(np.transpose(l.get_Output(t=t-1)), aux) for l in self.prev_recurrent] +
@@ -243,8 +244,11 @@ class Fully_Connected(Layer):
 	def prop(self):
 		inp = 0
 		i = 0
-		for l in self.prev_recurrent + self.prev:
-			inp += np.dot(l.get_Output(), self.W[i])
+		for l in self.prev_recurrent:
+			inp += np.dot(l.get_Output(t= 0 if l.prop_idx >= self.prop_idx else -1), self.W[i])
+			i+=1
+		for l in self.prev:
+			inp += np.dot(l.get_Output(t=0), self.W[i])
 			i+=1
 		out = inp + self.b
 		self.a = self.a + [out]
@@ -270,7 +274,7 @@ class LSTM(Layer):
 		self.num_cel = num_cel
 
 	def __sigm__(self, z):
-		return (np.tanh(z/2)+1)/2)
+		return (np.tanh(z/2)+1)/2
 
 	def __dev_sigm__(self, a):
 		return a*(1-a)
@@ -326,7 +330,7 @@ class LSTM(Layer):
 		aux = external_error
 		# Other layers' contributions
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -551,7 +555,7 @@ class LSTM(Layer):
 		self.a += [None]
 
 		self.i[-1] = self.__sigm__(sum([
-				np.dot(self.prev_recurrent[l_i].get_Output(t=-1), self.W_i_alprevs[l_i])
+				np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_i_alprevs[l_i])
 				for l_i in range(len(self.prev_recurrent))
 			])\
 			+ sum([
@@ -564,7 +568,7 @@ class LSTM(Layer):
 		)
 
 		self.f[-1] = self.__sigm__(sum([
-				np.dot(self.prev_recurrent[l_i].get_Output(t=-1), self.W_f_alprevs[l_i])
+				np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_f_alprevs[l_i])
 				for l_i in range(len(self.prev_recurrent))
 			])\
 			+ sum([
@@ -579,7 +583,7 @@ class LSTM(Layer):
 		self.c[-1] = self.get_f(t=0) * self.get_c(t=-1) \
 			+ self.__tanh__(
 				sum([
-					np.dot(self.prev_recurrent[l_i].get_Output(t=-1), self.W_c_alprevs[l_i])
+					np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_c_alprevs[l_i])
 					for l_i in range(len(self.prev_recurrent))
 				])\
 				+ sum([
@@ -590,7 +594,7 @@ class LSTM(Layer):
 				+ self.b_c
 			)
 		self.o[-1] = self.__sigm__(sum([
-				np.dot(self.prev_recurrent[l_i].get_Output(t=-1), self.W_o_alprevs[l_i])
+				np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_o_alprevs[l_i])
 				for l_i in range(len(self.prev_recurrent))
 			])\
 			+ sum([
@@ -726,7 +730,7 @@ class Convolution(Layer):
 	def backprop_error(self,t=0):
 		aux = 0
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -760,7 +764,9 @@ class Convolution(Layer):
 			self.b[i] -= self.b_grad[i]
 
 	def prop(self):
-		inp = np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=1)
+		inp = np.concatenate(
+			[l.get_Output(t=0 if l.prop_idx >= self.prop_idx else -1) for l in self.prev_recurrent]+
+			[l.get_Output(t=0) for l in self.prev], axis=1)
 		shape = (inp.shape[0],) + self.kernel_shape[1:] + tuple((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1)
 		strides = [inp.strides[-1]]
 		for sh in reversed(self.shape):
@@ -846,7 +852,7 @@ class Activation(Layer):
 			self.derivative_ff = lambda a: np.full(a.shape, 1)
 			self.multiplication = lambda a,b: a*b
 		else:
-			raise ValueError("Not defined activation function")
+			raise ValueError("Activation function not defined")
 
 	def initialize(self):
 		self.initialize_done = True
@@ -870,7 +876,7 @@ class Activation(Layer):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -1028,7 +1034,7 @@ class Dropout(Layer):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -1036,7 +1042,7 @@ class Dropout(Layer):
 		self.error = [aux]+self.error
 
 	def reset(self, minibatch_size):
-		if len(self.next_rercurrent)>0:
+		if len(self.next_recurrent)>0:
 			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
 		else:
 			self.a = []
@@ -1059,7 +1065,7 @@ class Dropout(Layer):
 		pass
 
 	def prop(self, desired_output=None):
-		out = np.concatenate([l.get_Output() for l in  self.prev_recurrent + self.prev], axis = 1) * self.mask
+		out = np.concatenate([l.get_Output(t=0 if l.prop_idx >= self.prop_idx else -1) for l in  self.prev_recurrent]+[l.get_Output(t=0) for l in self.prev], axis = 1) * self.mask
 		self.a = self.a + [out]
 		return out
 
@@ -1109,7 +1115,7 @@ class MaxPooling(Layer):
 		#  this function will be used during the BP. to calculate the error
 		aux = 0
 		if t != 0:
-			for layer in self.next_rercurrent:
+			for layer in self.next_recurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
@@ -1130,7 +1136,7 @@ class MaxPooling(Layer):
 		self.error = [aux]+self.error
 
 	def reset(self, minibatch_size):
-		if len(self.next_rercurrent)>0:
+		if len(self.next_recurrent)>0:
 			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
 		else:
 			self.a = []
@@ -1154,7 +1160,7 @@ class MaxPooling(Layer):
 		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
 
 	def prop(self, desired_output=None):
-		out = np.concatenate([l.get_Output() for l in  self.prev_recurrent + self.prev], axis = 1)
+		out = np.concatenate([l.get_Output(t=0 if l.prop_idx >= self.prop_idx else -1) for l in self.prev_recurrent]+[l.get_Output(t=0) for l in self.prev], axis = 1)
 
 		shape_ = (out.shape[0],) + tuple((np.subtract(self.shape, self.kernel_shape)//self.kernel_shape)+1) + self.kernel_shape
 		strides = [out.strides[-1]]

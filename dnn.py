@@ -72,15 +72,6 @@ class DNN():
 			if isinstance(layer, Loss):
 				self.output_layers.append(layer)
 
-
-		found = False
-		self.last_rec_idx = 0
-		for i in range(-1,-len(self.prop_order),-1):
-			if (len(self.prop_order[i].next_rercurrent)>0 or self.prop_order[i].get_in_recurrent_part())and not found:
-				self.last_rec_idx = i
-				found = True
-			self.prop_order[i].set_in_recurrent_part(found)
-
 	def add_inputs(self, *layers):
 		for layer in layers:
 			self.inputs.append(layer)
@@ -259,18 +250,18 @@ if __name__ == '__main__':
 
 	x = Input(4, "x")
 	h1 = Fully_Connected(10, "h1")
-	a1 = Activation("sigmoid", "a1")
+	a1 = Activation("sigmoid2", "a1")
 
 	h2 = Fully_Connected(10, "h2")
-	a2 = Activation("sigmoid", "a2")
+	a2 = Activation("sigmoid2", "a2")
 
 	h3 = Fully_Connected(10, "h3")
-	a3 = Activation("sigmoid", "a3")
+	a3 = Activation("sigmoid2", "a3")
 
 	sm4 = Fully_Connected(2,"sm1")
 	a4 = Activation("softmax", "a4")
 	sm5 = Fully_Connected(1, "sigmoid_out")
-	a5 = Activation("sigmoid", "a5")
+	a5 = Activation("sigmoid2", "a5")
 
 	loss1 = Loss("ce1", "loss1")
 	loss2 = Loss("ce1", "loss2")

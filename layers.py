@@ -15,7 +15,6 @@ class Layer:
 		self.error = None
 		self.b_grad = None
 		self.W_grad = None
-		self.is_in_recurrent_part = False
 		self.initializer = initializers.RandomNormal()
 
 	def setInitializer(self, initializer):
@@ -35,12 +34,6 @@ class Layer:
 
 	def __addPrevRecurrent__(self, layer):
 		self.prev_recurrent.append(layer)
-
-	def set_in_recurrent_part(self, par = False):
-		self.is_in_recurrent_part = par
-
-	def get_in_recurrent_part(self):
-		return self.is_in_recurrent_part
 
 	def get_Output(self, t=0):
 		return self.a[t-1]
@@ -77,7 +70,7 @@ class Layer:
 
 	def reset(self, minibatch_size):
 		if len(self.next_rercurrent)>0:
-			self.a = [np.zeros((minibatch_size, self.output_dim))]
+			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
 		else:
 			self.a = []
 		self.error = []
@@ -207,8 +200,7 @@ class Fully_Connected(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
+			aux += layer.get_error_contribution(self, t=t)
 		self.error = [aux]+self.error
 
 	def reset_grads(self):
@@ -221,12 +213,13 @@ class Fully_Connected(Layer):
 		W_grad_aux = [0]*len(self.W_grad)
 		for t in range(0,-num_t, -1):
 			aux = self.get_error(t=t)
-			b_grad_aux += aux
-			W_grad_aux = list(map(lambda x,y: x+y,
-				W_grad_aux,
-				[np.dot(np.transpose(l.get_Output(t=t-1)), aux) for l in self.prev_recurrent] +
-				[np.dot(np.transpose(l.get_Output(t=t)), aux) for l in self.prev]
-			))
+			if aux is not 0:
+				b_grad_aux += aux
+				W_grad_aux = list(map(lambda x,y: x+y,
+					W_grad_aux,
+					[np.dot(np.transpose(l.get_Output(t=t-1)), aux) for l in self.prev_recurrent] +
+					[np.dot(np.transpose(l.get_Output(t=t)), aux) for l in self.prev]
+				))
 		self.b_grad += b_grad_aux
 		self.W_grad = list(map(lambda x,y: x+y,
 				self.W_grad, W_grad_aux
@@ -277,7 +270,7 @@ class LSTM(Layer):
 		self.num_cel = num_cel
 
 	def __sigm__(self, z):
-		return 1 / (1 + np.exp(-z))
+		return (np.tanh(z/2)+1)/2)
 
 	def __dev_sigm__(self, a):
 		return a*(1-a)
@@ -336,8 +329,7 @@ class LSTM(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
+			aux += layer.get_error_contribution(self, t=t)
 
 		if t != 0:
 			aux += np.dot(
@@ -400,7 +392,6 @@ class LSTM(Layer):
 
 	def compute_gradients(self):
 		num_t = len(self.error_a)
-		#print(self.error_a)
 
 		W_i_alprevs_grads_aux = [0]*len(self.layers)
 		W_f_alprevs_grads_aux = [0]*len(self.layers)
@@ -454,7 +445,6 @@ class LSTM(Layer):
 			W_i_atprev_grads_aux += np.dot(np.transpose(self.get_Output(t=t-1)), aux_i)
 			W_f_atprev_grads_aux += np.dot(np.transpose(self.get_Output(t=t-1)), aux_f)
 			W_c_atprev_grads_aux += np.dot(np.transpose(self.get_Output(t=t-1)), aux_c)
-			#print(self.name, t, W_c_atprev_grads_aux)
 			W_o_atprev_grads_aux += np.dot(np.transpose(self.get_Output(t=t-1)), aux_o)
 
 			w_i_ctprev_grads_aux += aux_i * self.get_c(t=t-1)
@@ -739,9 +729,7 @@ class Convolution(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
-		dimension = aux.shape[1]//self.nb_filters
+			aux += layer.get_error_contribution(self, t=t)
 		self.error = [aux]+self.error
 
 	def reset_grads(self):
@@ -807,14 +795,15 @@ class Activation(Layer):
 
 	def set_activation_function(self, activation_function):
 		self.act_fun = activation_function
+
 		if activation_function == "sigmoid":
-			self.ff = lambda z: 1 / (1 + np.exp(-z))
+			self.ff = lambda z: (np.tanh(z/2)+1)/2
 			self.derivative_ff = lambda a: a*(1-a)
 			self.multiplication = lambda a,b: a*b
 
 		elif activation_function == "tanh":
 			self.ff = lambda z: np.tanh(z)
-			elf.derivative_ff = lambda a: 1 - np.tanh(a)**2
+			self.derivative_ff = lambda a: 1 - np.tanh(a)**2
 			self.multiplication = lambda a,b: a*b
 
 		elif activation_function == "dummy_softmax":
@@ -884,8 +873,7 @@ class Activation(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
+			aux += layer.get_error_contribution(self, t=t)
 		self.error = [aux]+self.error
 
 	def reset_grads(self):
@@ -979,10 +967,9 @@ class Loss(Layer):
 
 	def get_error_contribution(self, layer, t=0):
 		if self.desired_output is not None:
-			return self.grad(self.prev[0].get_Output(), self.desired_output)
+			return self.grad(self.prev[0].get_Output(t=t), self.desired_output)
 		else:
-			return 0
-
+			return np.zeros(self.prev[0].get_Output(t=t).shape)
 	def backprop_error(self,t=0, desired_output=None):
 		self.desired_output = desired_output
 
@@ -1044,8 +1031,7 @@ class Dropout(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
+			aux += layer.get_error_contribution(self, t=t)
 		aux = aux * self.mask
 		self.error = [aux]+self.error
 
@@ -1126,8 +1112,7 @@ class MaxPooling(Layer):
 			for layer in self.next_rercurrent:
 				aux += layer.get_error_contribution(self, t=t+1)
 		for layer in self.next:
-			if (t!=0 and layer.get_in_recurrent_part()) or t == 0:
-				aux += layer.get_error_contribution(self, t=t)
+			aux += layer.get_error_contribution(self, t=t)
 		# aux = aux * self.mask
 
 		d = np.zeros((self.get_Output(t=t).shape[0],)+self.shape)
@@ -1136,9 +1121,9 @@ class MaxPooling(Layer):
 		for k in range(len(self.kernel_shape)):
 			i.append((self.masks[t-1][k]+self.__reshape_idex__(k)).flatten())
 
-		# i.insert(0, np.tile(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
-		i.insert(0, np.repeat(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
-		d[i] = aux.flatten()
+		if aux is not 0:
+			i.insert(0, np.repeat(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
+			d[i] = aux.flatten()
 
 		aux = d.reshape(d.shape[0], np.multiply.reduce(d.shape[1:]))
 
@@ -1165,7 +1150,8 @@ class MaxPooling(Layer):
 		pass
 
 	def initialize(self):
-		pass
+		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape), "%s: %s --> %d" % (self.name, self.shape, sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]))
+		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
 
 	def prop(self, desired_output=None):
 		out = np.concatenate([l.get_Output() for l in  self.prev_recurrent + self.prev], axis = 1)

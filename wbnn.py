@@ -1,14 +1,11 @@
 import numpy as np
-import random
-import math
-import time
 import json
 import layers
-import os
+import optimizers
 
 from layers import Input, Loss
 
-class DNN():
+class NN():
 	def __init__(self, name):
 		self.name = name
 		self.inputs = []
@@ -54,7 +51,7 @@ class DNN():
 			for l in layer.next:
 				if sum(map(lambda l_: not l_ in self.prop_order and not l_ is l, l.prev)) == 0 and not l in self.prop_order:
 					to_add = [l]
-					if isinstance(l, DNN):
+					if isinstance(l, NN):
 						l.calculate_layer_order()
 						importing_dnn(l)
 						to_add = l.prop_order[len(l.inputs):]
@@ -151,6 +148,17 @@ class DNN():
 		for k in range(len(self.inputs),len(self.prop_order)):
 			self.prop_order[k].apply_to_gradients(func)
 
+	def get_gradients(self):
+		gradients = []
+		def insert_on_grads(grad):
+			gradients.append(grad)
+			return grad
+		self.apply_to_gradients(insert_on_grads)
+		return gradients
+
+	def set_gradients(self, gradients):
+		self.apply_to_gradients(lambda x: gradients.pop(0))
+
 	def compute_minibatch_grad(self, mini_batch):
 		self.reset_gradients()
 		out = self.backprop(*mini_batch)
@@ -158,10 +166,9 @@ class DNN():
 
 		# Normalizar los gradientes
 		self.apply_to_gradients(lambda grad: grad/mini_batch[1][0][0].shape[0])
-		return loss
+		return self.get_gradients(),loss
 
 	def update_model(self):
-		self.apply_to_gradients(lambda x: x*self.lr)
 		for k in range(len(self.inputs),len(self.prop_order)):
 			self.prop_order[k].update()
 
@@ -170,34 +177,6 @@ class DNN():
 		out = self.prop(data[0].copy(), data[1].copy())
 		loss = sum([sum([ np.sum(out_o) for out_o in out_t]) for out_t in out[len(data[0])-len(data[1]):]])
 		return loss/len_tr
-
-	def train_step(self, m_b):
-		loss_m_b = self.compute_minibatch_grad(m_b)
-		self.update_model()
-		return loss_m_b
-
-	def SGD(self, training_data, batch_size, nb_epochs, lr_start, lr_end,
-			func = lambda *x: print(x[0],"training loss:", x[2])):
-		self.lr = lr_start
-		dec_rate = 1
-		if nb_epochs != 1:
-			dec_rate = (lr_end/lr_start)**(1/(nb_epochs-1))
-
-		nb_training_examples = training_data[1][0][0].shape[0]
-		indexes = np.arange(nb_training_examples)
-
-		for j in range(nb_epochs):
-			loss = 0
-
-			random.shuffle(indexes)
-			for i in range(0,nb_training_examples, batch_size):
-				m_b = ([[input_[indexes[i:i+batch_size],:] for input_ in time_step] for time_step in training_data[0]], 
-					[[output_[indexes[i:i+batch_size],:] for output_ in time_step] for time_step in training_data[1]])
-				loss += self.train_step(m_b)
-
-			if func is not None:
-				func(j, self, loss/nb_training_examples)
-			self.lr *= dec_rate
 
 	def save(self, name = None):
 		dir_ = time.strftime(name if name is not None else self.name + "_%Y-%m-%d_%H-%M")
@@ -244,13 +223,11 @@ class DNN():
 			return nn
 
 if __name__ == '__main__':
-	import random
-	import math
-	import time
 
 	from layers import Fully_Connected, LSTM, Activation, Loss
+	from optimizers import SGD
 	
-	nn = DNN("minibatching")
+	nn = NN("minibatching")
 
 	x = Input(4, "x")
 	h1 = Fully_Connected(10, "h1")
@@ -300,7 +277,6 @@ if __name__ == '__main__':
 		v = inps[:,3]
 		a = (np.cos(x-2*y+z*v)**2)[:,np.newaxis]
 		return np.concatenate((a, 1-a), axis=1)
-		# return np.concatenate((a/4, 3*a/4, (1-a)/4, 3*(1-a)/4), axis=1)
 
 	def f2(inps):
 		x = inps[:,0]
@@ -308,7 +284,7 @@ if __name__ == '__main__':
 		z = inps[:,2]
 		v = inps[:,3]
 		a = (np.cos(x*y-(v+2.3*x))**2)[:,np.newaxis]
-		return a#np.concatenate((a, 1-a), axis=1)
+		return a
 
 	def generate_examples(nb_examples):
 		inps = np.random.rand(nb_examples,4)
@@ -318,7 +294,9 @@ if __name__ == '__main__':
 
 	examples_train = generate_examples(100000)
 
-	nn.SGD(examples_train, 128, 15, 0.5, 0.5)
+	sgd = SGD(nn, batch_size=128, nb_epochs=15, lr_start=0.5, lr_end=0.5)
+
+	sgd.fit(examples_train)
 
 
 	examples_test = generate_examples(10)
@@ -330,7 +308,7 @@ if __name__ == '__main__':
 	for i in range(10):
 		print(examples_test[0][0][0][i,:],
 			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
-			'\n\t--> R', examples_test[1][0][1][i,:], "\t    P", y2[i,:])
+			"\n\t--> R", examples_test[1][0][1][i,:], "\t    P", y2[i,:])
 		print()
 
 

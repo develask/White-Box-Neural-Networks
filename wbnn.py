@@ -17,7 +17,7 @@ class NN():
 
 	def calculate_layer_order(self):
 		"""
-		Since DNN object contains a graph representation,
+		Since NN object contains a graph representation,
 		this function calculates the propagation order.
 		Using the reverse order, work for backpropagation.
 		"""
@@ -215,7 +215,7 @@ class NN():
 				layers_[idx].prev_recurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['prev_recurrent']]
 
 			inps = list(filter(lambda x: isinstance(x, Input), layers_))
-			nn = DNN(dir_)
+			nn = NN(dir_)
 			for inp in inps:
 				nn.add_inputs(inp)
 

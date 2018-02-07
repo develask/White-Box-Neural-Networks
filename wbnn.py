@@ -228,7 +228,7 @@ if __name__ == '__main__':
 	from layers import Fully_Connected, LSTM, Activation, Loss
 	from optimizers import SGD
 	
- 	nn = NN("minibatching")
+	nn = NN("minibatching")
 
 	x = Input(4, "x")
 	h1 = Fully_Connected(10, "h1")
@@ -305,8 +305,6 @@ if __name__ == '__main__':
 	print(nn.get_loss_of_data(examples_test))
 	y1, y2 = nn.prop(examples_test[0])[0]
 	
-	nn.save()
-
 	for i in range(10):
 		print(examples_test[0][0][0][i,:],
 			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],

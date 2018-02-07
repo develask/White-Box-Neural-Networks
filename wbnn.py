@@ -1,3 +1,4 @@
+import time, os
 import numpy as np
 import json
 import layers
@@ -193,7 +194,7 @@ class NN():
 			inf[str(l_id)] = {
 				'next': [id(l) for l in layer.next],
 				'prev': [id(l) for l in layer.prev],
-				'next_rercurrent': [id(l) for l in layer.next_rercurrent],
+				'next_recurrent': [id(l) for l in layer.next_recurrent],
 				'prev_recurrent': [id(l) for l in layer.prev_recurrent],
 			}
 			layer.save(dir_)
@@ -211,7 +212,7 @@ class NN():
 				idx = layers_id.index(str(l))
 				layers_[idx].next = [layers_[layers_id.index(str(ln))] for ln in inf[l]['next']]
 				layers_[idx].prev = [layers_[layers_id.index(str(ln))] for ln in inf[l]['prev']]
-				layers_[idx].next_rercurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['next_rercurrent']]
+				layers_[idx].next_recurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['next_recurrent']]
 				layers_[idx].prev_recurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['prev_recurrent']]
 
 			inps = list(filter(lambda x: isinstance(x, Input), layers_))
@@ -227,7 +228,7 @@ if __name__ == '__main__':
 	from layers import Fully_Connected, LSTM, Activation, Loss
 	from optimizers import SGD
 	
-	nn = NN("minibatching")
+ 	nn = NN("minibatching")
 
 	x = Input(4, "x")
 	h1 = Fully_Connected(10, "h1")
@@ -264,11 +265,10 @@ if __name__ == '__main__':
 	sm5.addNext(a5)
 	a5.addNext(loss2)
 
-
-
 	nn.add_inputs(x)
 
 	nn.initialize()
+
 
 	def f1(inps):
 		x = inps[:,0]
@@ -304,6 +304,8 @@ if __name__ == '__main__':
 	print(nn.get_loss_of_data(examples_train))
 	print(nn.get_loss_of_data(examples_test))
 	y1, y2 = nn.prop(examples_test[0])[0]
+	
+	nn.save()
 
 	for i in range(10):
 		print(examples_test[0][0][0][i,:],

@@ -283,7 +283,7 @@ class LSTM(Layer):
 		return np.tanh(z)
 
 	def __dev_tanh__(self, a):
-		return 1 - np.tanh(a)**2
+		return 1 - a**2
 
 	def get_i(self, t=0):
 		return self.i[t-1]
@@ -809,7 +809,7 @@ class Activation(Layer):
 
 		elif activation_function == "tanh":
 			self.ff = lambda z: np.tanh(z)
-			self.derivative_ff = lambda a: 1 - np.tanh(a)**2
+			self.derivative_ff = lambda a: 1 - a**2
 			self.multiplication = lambda a,b: a*b
 
 		elif activation_function == "dummy_softmax":

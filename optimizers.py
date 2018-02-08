@@ -5,17 +5,19 @@ class Optimizer():
 		self.net = net
 
 
-
 class SGD(Optimizer):
-	def __init__(self, net, batch_size, nb_epochs, lr_start, lr_end):
+	def __init__(self, net, batch_size, nb_epochs, lr_start, lr_end, clipping = None):
 		super(SGD, self).__init__(net)
 		self.batch_size = batch_size
 		self.nb_epochs = nb_epochs
 		self.lr_start = lr_start
 		self.lr_end = lr_end
-
+		self.clipping = clipping
+	
 	def train_step(self, m_b):
 		grads, loss_m_b = self.net.compute_minibatch_grad(m_b)
+		if self.clipping is not None:
+			self.net.apply_to_gradients(lambda grad: np.clip(grad, self.clipping*))
 		self.net.apply_to_gradients(lambda x: x*self.lr)
 		self.net.update_model()
 		return loss_m_b

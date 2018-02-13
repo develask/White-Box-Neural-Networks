@@ -22,12 +22,12 @@ TODO list:
 - [X] Multiple output layers
 - [X] Convolution step/stride
 - [X] Parameter sharing
-- [ ] Implement other optimization techniques
+- [X] Implement other optimization techniques
 - [X] Dropout
-- [ ] Activation functions (softmax included) out of the Fully_Connected layer
-- [ ] Control initializations in a more apropriate way
+- [X] Activation functions (softmax included) out of the Fully_Connected layer
+- [X] Control initializations in a more apropriate way
 - [ ] High Level API/Script to create more complex net (recursive recurrences, seq2seq)
-- [ ] Pooling Layers (very low priority)
+- [X] Pooling Layers (very low priority)
 
 • Stage 3:
 - [ ] Comment the code.

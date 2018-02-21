@@ -6,6 +6,15 @@ This tookit is the result of two Master thesis, and is still under development. 
 
 See our wiki: [link](https://github.com/develask/White-Box-Neural-Networks/wiki)
 
+## Downloading and installing WBNN
+
+To download this tookit first clone the GitHub project. This can be done via the online interface or running the command below in the folder you want to keep the code:
+
+```bash
+git clone git@github.com:develask/White-Box-Neural-Networks.git
+```
+
+
 TODO list:
 
 • Stage 1:
@@ -14,8 +23,6 @@ TODO list:
 - [X] Add covolutional layer
 - [X] Let convolutonal layers accept many inputs with different number of filters
 - [X] Change the shape order of inputs: (examples, feats)
-- [ ] Change the order of inputs and time
-- [ ] Improve speed (do inp adition before multiplication)
 
 • Stage 2:
 - [X] RNN with outputs every time step
@@ -26,7 +33,6 @@ TODO list:
 - [X] Dropout
 - [X] Activation functions (softmax included) out of the Fully_Connected layer
 - [X] Control initializations in a more apropriate way
-- [ ] High Level API/Script to create more complex net (recursive recurrences, seq2seq)
 - [X] Pooling Layers (very low priority)
 
 • Stage 3:

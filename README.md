@@ -11,7 +11,14 @@ See our wiki: [link](https://github.com/develask/White-Box-Neural-Networks/wiki)
 To download this tookit first clone the GitHub project. This can be done via the online interface or running the command below in the folder you want to keep the code:
 
 ```bash
+cd /path/to/folder/of/WBNN
 git clone git@github.com:develask/White-Box-Neural-Networks.git
+```
+
+Then you might want to export its path, adding this line to the `~/.bashrc` file:
+
+```bash
+EXPORT PYTHONPATH=$PYTHONPATH:"/path/to/folder/of/WBNN/wbnn"
 ```
 
 

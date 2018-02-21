@@ -17,7 +17,7 @@ class SGD(Optimizer):
 	def train_step(self, m_b):
 		grads, loss_m_b = self.net.compute_minibatch_grad(m_b)
 		if self.clipping is not None:
-			self.net.apply_to_gradients(lambda grad: np.clip(grad, self.clipping*))
+			self.net.apply_to_gradients(lambda grad: np.clip(grad, *self.clipping))
 		self.net.apply_to_gradients(lambda x: x*self.lr)
 		self.net.update_model()
 		return loss_m_b

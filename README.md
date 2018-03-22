@@ -4,7 +4,8 @@
 
 This tookit is the result of two Master thesis, and is still under development. For the moment standard multilayer neural networks have been developed, as well as networks with paralell connections and recurrent neural netoworks, LSTMs included.
 
-See our wiki: [link](https://github.com/develask/White-Box-Neural-Networks/wiki)
+For more detailed information:
+### [WBNN wiki](https://github.com/develask/White-Box-Neural-Networks/wiki)
 
 ## Downloading and installing WBNN
 

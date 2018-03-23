@@ -1,11 +1,16 @@
-# White Box Neural Networks
+<div align="center">
+  <img src="https://raw.githubusercontent.com/wiki/develask/White-Box-Neural-Networks/wbnn_logo.png"><br><br>
+</div>
 
-<img src="https://raw.githubusercontent.com/wiki/develask/White-Box-Neural-Networks/wbnn_logo.png" width="200">
+-----------------
+
+# White Box Neural Networks
 
 This tookit is the result of two Master thesis, and is still under development. For the moment standard multilayer neural networks have been developed, as well as networks with paralell connections and recurrent neural netoworks, LSTMs included.
 
 For more detailed information:
-### [WBNN wiki](https://github.com/develask/White-Box-Neural-Networks/wiki)
+
+[![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](https://github.com/develask/White-Box-Neural-Networks/wiki)
 
 ## Downloading and installing WBNN
 

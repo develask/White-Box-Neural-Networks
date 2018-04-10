@@ -24,7 +24,7 @@ class RandomNormal(Initializer):
 		return np.random.normal(loc=self.mean, scale=stddev, size=shape)
 
 class RandomUniform(Initializer):
-	def __init__(self, minVal=0.01, maxVal=0.01):
+	def __init__(self, minVal=-0.01, maxVal=0.01):
 		self.minVal = minVal
 		self.maxVal = maxVal
 	

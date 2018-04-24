@@ -285,6 +285,9 @@ class LSTM(Layer):
 	def __dev_tanh__(self, a):
 		return 1 - a**2
 
+	def __dev_tanh_z__(self, z):
+		return 1 - np.tanh(z)**2
+
 	def get_i(self, t=0):
 		return self.i[t-1]
 
@@ -302,6 +305,9 @@ class LSTM(Layer):
 
 	def get_o_error(self, t=0):
 		return self.error_o[t-1]
+
+	def get_tanh_zc(self, t=0):
+		return self.tanh_zc[t-1]
 
 	def get_c_error(self, t=0):
 		return self.error_c[t-1]
@@ -361,7 +367,7 @@ class LSTM(Layer):
 
 		# error in c
 		aux = self.w_o_c * self.get_o_error(t=t) * self.__dev_sigm__(self.get_o(t=t)) \
-		+ self.get_a_error(t=t) * self.get_o(t=t) * self.__dev_tanh__(self.get_c(t=t))
+		+ self.get_a_error(t=t) * self.get_o(t=t) * self.__dev_tanh_z__(self.get_c(t=t))
 		if t!=0:
 			aux += self.get_c_error(t=t+1) * self.get_f(t=t+1) \
 			+ self.w_i_ctprev * self.get_i_error(t=t+1) * self.__dev_sigm__(self.get_i(t=t+1)) \
@@ -372,7 +378,7 @@ class LSTM(Layer):
 		self.error_f = [self.get_c(t=t-1)*self.get_c_error(t=t)] + self.error_f
 
 		# error in i
-		self.error_i = [self.get_c_error(t=t)*self.__tanh__(self.get_c(t=t))] + self.error_i
+		self.error_i = [self.get_c_error(t=t)*self.get_tanh_zc(t=t)] + self.error_i
 
 	def reset_grads(self):
 		self.W_i_alprevs_grads = [0]*len(self.layers)
@@ -550,6 +556,7 @@ class LSTM(Layer):
 
 		self.i += [None]
 		self.f += [None]
+		self.tanh_zc += [None]
 		self.c += [None]
 		self.o += [None]
 		self.a += [None]
@@ -580,19 +587,21 @@ class LSTM(Layer):
 			+ self.b_f
 		)
 
-		self.c[-1] = self.get_f(t=0) * self.get_c(t=-1) \
-			+ self.__tanh__(
-				sum([
-					np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_c_alprevs[l_i])
-					for l_i in range(len(self.prev_recurrent))
-				])\
-				+ sum([
-					np.dot(self.prev[l_i].get_Output(t=0), self.W_c_alprevs[len_prev_rec+l_i])
-						for l_i in range(len(self.prev))
-				])\
-				+ np.dot(self.get_Output(t=-1), self.W_c_atprev)\
-				+ self.b_c
-			)
+		self.tanh_zc[-1] = self.__tanh__(
+			sum([
+				np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_c_alprevs[l_i])
+				for l_i in range(len(self.prev_recurrent))
+			])\
+			+ sum([
+				np.dot(self.prev[l_i].get_Output(t=0), self.W_c_alprevs[len_prev_rec+l_i])
+					for l_i in range(len(self.prev))
+			])\
+			+ np.dot(self.get_Output(t=-1), self.W_c_atprev)\
+			+ self.b_c
+		)
+
+		self.c[-1] = self.get_f(t=0) * self.get_c(t=-1) + self.get_i(t=0) * self.get_tanh_zc(t=0)
+
 		self.o[-1] = self.__sigm__(sum([
 				np.dot(self.prev_recurrent[l_i].get_Output(t=0 if self.prev_recurrent[l_i].prop_idx >= self.prop_idx else -1), self.W_o_alprevs[l_i])
 				for l_i in range(len(self.prev_recurrent))
@@ -617,6 +626,7 @@ class LSTM(Layer):
 			len_ = int(init_cond.shape[0]/2)
 			self.a = [init_cond[:len_,:]]
 			self.c = [init_cond[len_:,:]]
+		self.tanh_zc = []
 		self.i = []
 		self.f = []
 		self.o = []

@@ -239,7 +239,7 @@ class Fully_Connected(Layer):
 			self.W[i] -= self.W_grad[i]
 
 	def __update_b__(self):
-		self.b -= np.sum(self.b_grad, axis=0)[np.newaxis]
+		self.b -= self.b_grad
 
 	def prop(self):
 		inp = 0
@@ -766,12 +766,10 @@ class Convolution(Layer):
 		self.__update_W__()
 
 	def __update_W__(self):
-		for i in range(len(self.W_grad)):
-			self.W[i] -= self.W_grad[i]
+		self.W -= self.W_grad
 
 	def __update_b__(self):
-		for i in range(len(self.b_grad)):
-			self.b[i] -= self.b_grad[i]
+		self.b -= self.b_grad
 
 	def prop(self):
 		inp = np.concatenate(

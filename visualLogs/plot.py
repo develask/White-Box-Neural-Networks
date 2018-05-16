@@ -475,12 +475,19 @@ class Image(Plotter):
 
 		plt.show()
 
-if __name__ == '__main__':
-	
-	files_to_read = sys.argv[1:]
+def main(args=None):
+	"""The main routine."""
+	if args is None:
+		args = sys.argv[1:]
+
+	files_to_read = args
 
 	for C in [Scalar, Histogram, Image]:
 		c = C(files_to_read)
+
+
+if __name__ == '__main__':
+	main()
 
 
 

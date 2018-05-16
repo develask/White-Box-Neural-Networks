@@ -1,11 +1,7 @@
 import time, os
 import numpy as np
 import json
-import layers
-import optimizers
-from visual_logs.logger import Logger
-
-from layers import Input, Loss
+from . import layers, optimizers
 
 class NN():
 	def __init__(self, name):
@@ -72,7 +68,7 @@ class NN():
 		for layer in self.prop_order:
 			if init_layers:
 				layer.initialize()
-			if isinstance(layer, Loss):
+			if isinstance(layer, layers.Loss):
 				self.output_layers.append(layer)
 
 	def add_inputs(self, *layers):
@@ -114,8 +110,8 @@ class NN():
 			if desired_output and t - (len(inp)-len(desired_output)) >= 0:
 				out_t_cop = desired_output[t - (len(inp)-len(desired_output))].copy()
 			for layer in self.prop_order:
-				if isinstance(layer, Input) or (isinstance(layer, Loss) and out_t_cop):
-					if isinstance(layer, Input):
+				if isinstance(layer, layers.Input) or (isinstance(layer, layers.Loss) and out_t_cop):
+					if isinstance(layer, layers.Input):
 						layer.prop(inp_t_cop.pop(0))
 					else:
 						layer.prop(out_t_cop.pop(0))
@@ -216,108 +212,10 @@ class NN():
 				layers_[idx].next_recurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['next_recurrent']]
 				layers_[idx].prev_recurrent = [layers_[layers_id.index(str(ln))] for ln in inf[l]['prev_recurrent']]
 
-			inps = list(filter(lambda x: isinstance(x, Input), layers_))
+			inps = list(filter(lambda x: isinstance(x, layers.Input), layers_))
 			nn = NN(dir_)
 			for inp in inps:
 				nn.add_inputs(inp)
 
 			nn.initialize(init_layers = False)
 			return nn
-
-if __name__ == '__main__':
-
-	from layers import Fully_Connected, LSTM, Activation, Loss
-	from optimizers import SGD
-	
-	nn = NN("minibatching")
-
-	x = Input(4, "x")
-	h1 = Fully_Connected(10, "h1")
-	a1 = Activation("sigmoid", "a1")
-
-	h2 = Fully_Connected(10, "h2")
-	a2 = Activation("sigmoid", "a2")
-
-	h3 = Fully_Connected(10, "h3")
-	a3 = Activation("sigmoid", "a3")
-
-	sm4 = Fully_Connected(2,"sm1")
-	a4 = Activation("softmax", "a4")
-	sm5 = Fully_Connected(1, "sigmoid_out")
-	a5 = Activation("sigmoid", "a5")
-
-	loss1 = Loss("ce1", "loss1")
-	loss2 = Loss("ce1", "loss2")
-
-	x.addNext(h1)
-	h1.addNext(a1)
-
-	a1.addNext(h2)
-	h2.addNext(a2)
-
-	a1.addNext(h3)
-	h3.addNext(a3)
-
-	a2.addNext(sm4)
-	sm4.addNext(a4)
-	a4.addNext(loss1)
-
-	a3.addNext(sm5)
-	sm5.addNext(a5)
-	a5.addNext(loss2)
-
-	nn.add_inputs(x)
-
-	nn.initialize()
-
-
-	def f1(inps):
-		x = inps[:,0]
-		y = inps[:,1]
-		z = inps[:,2]
-		v = inps[:,3]
-		a = (np.cos(x-2*y+z*v)**2)[:,np.newaxis]
-		return np.concatenate((a, 1-a), axis=1)
-
-	def f2(inps):
-		x = inps[:,0]
-		y = inps[:,1]
-		z = inps[:,2]
-		v = inps[:,3]
-		a = (np.cos(x*y-(v+2.3*x))**2)[:,np.newaxis]
-		return a
-
-	def generate_examples(nb_examples):
-		inps = np.random.rand(nb_examples,4)
-		outs1 = f1(inps)
-		outs2 = f2(inps)
-		return [[inps]], [[outs1, outs2]]
-
-	examples_train = generate_examples(100000)
-
-	sgd = SGD(nn, batch_size=128, nb_epochs=15, lr_start=0.5, lr_end=0.5)
-
-	sgd.fit(examples_train)
-
-
-	examples_test = generate_examples(10)
-
-	print(nn.get_loss_of_data(examples_train))
-	print(nn.get_loss_of_data(examples_test))
-	y1, y2 = nn.prop(examples_test[0])[0]
-	
-	for i in range(10):
-		print(examples_test[0][0][0][i,:],
-			"\n\t--> R", examples_test[1][0][0][i,:], "\t    P", y1[i,:],
-			"\n\t--> R", examples_test[1][0][1][i,:], "\t    P", y2[i,:])
-		print()
-
-
-
-
-
-
-
-
-
-

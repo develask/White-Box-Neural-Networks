@@ -1,5 +1,5 @@
 import numpy as np
-import initializers
+from . import initializers
 import os
 import json
 

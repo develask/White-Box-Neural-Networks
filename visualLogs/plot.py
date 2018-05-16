@@ -1,15 +1,13 @@
-#import matplotlib as mpl
-#mpl.use('TkAgg')
+import matplotlib
+matplotlib.use('TkAgg')
 import json
 import sys
-
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 from matplotlib.widgets import Slider, RadioButtons
 import matplotlib.ticker as ticker
 from matplotlib import colors
-import matplotlib
 import numpy as np
 import time
 import math

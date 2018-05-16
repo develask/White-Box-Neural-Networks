@@ -3,6 +3,7 @@ import numpy as np
 import json
 import layers
 import optimizers
+from visual_logs.logger import Logger
 
 from layers import Input, Loss
 

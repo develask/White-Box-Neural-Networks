@@ -20,7 +20,7 @@ class RandomNormal(Initializer):
 	def get(self, shape):
 		stddev = self.stddev
 		if stddev == None:
-			stddev = 1.0 / np.sqrt(np.multiply.reduce(shape))
+			stddev = np.sqrt(2/sum(shape))
 		return np.random.normal(loc=self.mean, scale=stddev, size=shape)
 
 class RandomUniform(Initializer):

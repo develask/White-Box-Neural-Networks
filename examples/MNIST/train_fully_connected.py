@@ -62,7 +62,8 @@ test_inputs = [[np.load("./data/t10k_images.npy")]]
 test_outputs = [[np.load("./data/t10k_labels.npy")]]
 
 # Initialize the SGD and define its hyperparameters
-sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=50, lr_start=0.5, lr_end=0.1)
+sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=50, lr_start=0.5, lr_end=0.2)
+
 
 # Before training the NN, we define an (optional) function that will be 
 # called every epoch. This one will display the training and test loss in each epoch.

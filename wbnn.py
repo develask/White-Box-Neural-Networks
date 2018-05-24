@@ -146,6 +146,12 @@ class NN():
 		for k in range(len(self.inputs),len(self.prop_order)):
 			self.prop_order[k].apply_to_gradients(func)
 
+	def get_params(self):
+		params = []
+		for l in self.prop_order:
+			params += l.get_params()
+		return params
+
 	def get_gradients(self):
 		gradients = []
 		def insert_on_grads(grad):

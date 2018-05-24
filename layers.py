@@ -60,6 +60,9 @@ class Layer:
 	def apply_to_gradients(self, func):
 		raise NotImplementedError( "Should have implemented this" )
 
+	def get_params(self):
+		raise NotImplementedError( "Should have implemented this" )
+
 	def update(self):
 		raise NotImplementedError( "Should have implemented this" )
 
@@ -162,6 +165,9 @@ class Input(Layer):
 	def compute_gradients(self):
 		pass
 
+	def get_params(self):
+		return []
+
 	def prop(self, x_labels):
 		self.a = self.a + [x_labels]
 		return x_labels
@@ -229,6 +235,9 @@ class Fully_Connected(Layer):
 	def apply_to_gradients(self, func):
 		self.b_grad = func(self.b_grad)
 		self.W_grad = list(map(func, self.W_grad))
+
+	def get_params(self):
+		return [self.b] + self.W
 
 	def update(self):
 		self.__update_b__()
@@ -505,6 +514,12 @@ class LSTM(Layer):
 		self.b_c_grads = func(self.b_c_grads)
 		self.b_o_grads = func(self.b_o_grads)
 
+	def get_params(self):
+		return self.W_i_alprevs + self.W_f_alprevs + self.W_c_alprevs + self.W_o_alprevs +\
+			[self.W_i_atprev, self.W_f_atprev, self.W_c_atprev, self.W_o_atprev,
+			self.w_i_ctprev, self.w_f_ctprev, self.w_o_c,
+			self.b_i, self.b_f, self.b_c, self.b_o]
+
 	def update(self):
 		for i in range(len(self.W_i_alprevs)):
 			self.W_i_alprevs[i] -= self.W_i_alprevs_grads[i]
@@ -761,6 +776,9 @@ class Convolution(Layer):
 		self.b_grad = func(self.b_grad)
 		self.W_grad = func(self.W_grad)
 
+	def get_params(self):
+		return [self.b, self.W]
+
 	def update(self):
 		self.__update_b__()
 		self.__update_W__()
@@ -896,6 +914,9 @@ class Activation(Layer):
 	def compute_gradients(self):
 		pass
 
+	def get_params(self):
+		return []
+
 	def apply_to_gradients(self, func):
 		pass
 
@@ -993,6 +1014,9 @@ class Loss(Layer):
 	def compute_gradients(self):
 		pass
 
+	def get_params(self):
+		return []
+
 	def apply_to_gradients(self, func):
 		pass
 
@@ -1062,6 +1086,9 @@ class Dropout(Layer):
 
 	def compute_gradients(self):
 		pass
+
+	def get_params(self):
+		return []
 
 	def apply_to_gradients(self, func):
 		pass
@@ -1156,6 +1183,9 @@ class MaxPooling(Layer):
 
 	def compute_gradients(self):
 		pass
+
+	def get_params(self):
+		return []
 
 	def apply_to_gradients(self, func):
 		pass

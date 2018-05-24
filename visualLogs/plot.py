@@ -104,6 +104,8 @@ class Plotter():
 	def __init__(self, files_to_read):
 		self.files_to_read = files_to_read
 
+		show_folder =  len(set([file_to_read.split('/')[-2] for file_to_read in files_to_read])) > 1
+
 		self.logs = {}
 		for file_to_read in files_to_read:
 			format_ = file_to_read.split('/')[-1].split('_')[0]
@@ -111,6 +113,8 @@ class Plotter():
 				continue
 
 			name = '_'.join(file_to_read.split('/')[-1].split('_')[1:])[:-4]
+			if show_folder:
+				name = name + ' ('+file_to_read.split('/')[-2]+')'
 
 			my_logs = self.read_file(file_to_read)
 			self.logs[name] = my_logs
@@ -169,6 +173,8 @@ class Histogram(Plotter):
 			zs = range(len(logs))
 
 			my_mod = int(len(logs)/10)
+			if my_mod == 0:
+				my_mod = 1
 
 			#filer
 			logs, zs = zip(*[ (x,i) for x,i in zip(logs, zs) if i%my_mod==0])
@@ -216,6 +222,8 @@ class Histogram(Plotter):
 				zs = range(len(logs))
 
 				my_mod = int(len(logs)/int(val))
+				if my_mod == 0:
+					my_mod = 1
 
 				#filer
 				logs, zs = zip(*[ (x,i) for x,i in zip(logs, zs) if i%(my_mod)==0])
@@ -444,7 +452,7 @@ class Image(Plotter):
 					return [self.axis]
 			axeslist = MyC(axeslist)
 		for ind,title in zip(range(len(names)), names):
-			im = axeslist.ravel()[ind].imshow(logs_dict[title][1][-1,...], cmap='hot', vmin = _min, vmax = _max)#plt.jet())
+			im = axeslist.ravel()[ind].imshow(logs_dict[title][1][-1,...], cmap='hot', vmin = _min, vmax = _max, interpolation='nearest', aspect='auto')
 			axeslist.ravel()[ind].set_title(title)
 			axeslist.ravel()[ind].set_axis_off()
 		for last_idx in range(ind+1, num_cols*num_rows):
@@ -458,18 +466,25 @@ class Image(Plotter):
 
 		def update(val):
 			for ind,title in zip(range(len(names)), names):
-				im = axeslist.ravel()[ind].imshow(logs_dict[title][1][int((logs_dict[title][1].shape[0]-1)*samp.val),...], cmap=radio.value_selected, vmin = _min, vmax = _max)
+				if width_b.value_selected == 'original':
+					im = axeslist.ravel()[ind].imshow(logs_dict[title][1][int((logs_dict[title][1].shape[0]-1)*samp.val),...], cmap=radio.value_selected, vmin = _min, vmax = _max)
+				else:
+					im = axeslist.ravel()[ind].imshow(logs_dict[title][1][int((logs_dict[title][1].shape[0]-1)*samp.val),...], cmap=radio.value_selected, vmin = _min, vmax = _max, interpolation='nearest', aspect='auto')
 
 			fig.colorbar(im, cax=cbar_ax)
 
 		axcolor = 'lightgoldenrodyellow'
-		axsmooth = plt.axes([0.3, 0.025, 0.60, 0.03], facecolor=axcolor)
+		axsmooth = plt.axes([0.35, 0.025, 0.55, 0.03], facecolor=axcolor)
 		samp = Slider(axsmooth, 'time', 0, 1, valinit=1)
 		samp.on_changed(update)
 
 		rax = plt.axes([0.025, 0.025, 0.1, 0.1], facecolor=axcolor)
 		radio = RadioButtons(rax, ('hot', 'jet'), active=0)
 		radio.on_clicked(update)
+
+		rax2 = plt.axes([0.15, 0.025, 0.1, 0.1], facecolor=axcolor)
+		width_b = RadioButtons(rax2, ('scaled', 'original'), active=0)
+		width_b.on_clicked(update)
 
 		plt.show()
 

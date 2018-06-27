@@ -180,12 +180,13 @@ class Histogram(Plotter):
 			logs, zs = zip(*[ (x,i) for x,i in zip(logs, zs) if i%my_mod==0])
 
 			val_max = 0
+			num_vals = np.sum(np.asarray([x[1] for x in logs])[:,0,1])
 			left_lim = 0
 			right_lim = 0
 
 			for (width, bar), z in zip(logs, zs):
-				xs = [x[0] for x in bar]
-				ys = [x[1]+width/2 for x in bar]
+				xs = [x[0]+width/2 for x in bar]
+				ys = [x[1]/(width*num_vals) for x in bar]
 				if max(ys) > val_max:
 					val_max = max(ys)
 				if min(xs) < right_lim:
@@ -202,7 +203,6 @@ class Histogram(Plotter):
 
 			ax.set_xlabel('value')
 			ax.set_ylabel('mini-batch')
-			ax.set_zlabel('count')
 			ax.set_xlim(right_lim, left_lim)
 			ax.set_ylim(zs[-1], zs[0])
 			ax.set_zlim(0, val_max)
@@ -237,29 +237,26 @@ class Histogram(Plotter):
 					return take(back[0], front[0], porcent), take(back[1], front[1], porcent), take(back[2], front[2], porcent), 0.8
 
 				val_max = 0
+				num_vals = np.sum(np.asarray([x[1] for x in logs])[:,0,1])
 				left_lim = 0
 				right_lim = 0
 
 				for (width, bar), z in zip(logs, zs):
-					xs = [x[0] for x in bar]
-					ys = [x[1]+width/2 for x in bar]
+					xs = [x[0]+width/2 for x in bar]
+					ys = [x[1]/(width*num_vals) for x in bar]
 					if max(ys) > val_max:
 						val_max = max(ys)
 					if min(xs) < right_lim:
 						right_lim = min(xs)
 					if max(xs) > left_lim:
 						left_lim = max(xs)
-
 					temps.append(polygon_under_graph(xs, ys))
-
-					# ax.plot(xs, ys, z, zdir='y', color=(1,1,1), alpha=1, linewidth=1)
 
 				poly = PolyCollection(temps, facecolors=[color_(x) for x in range(len(logs))], edgecolors=(1,1,1,0.8))
 				ax.add_collection3d(poly, zs=zs, zdir='y')
 
 				ax.set_xlabel('value')
 				ax.set_ylabel('mini-batch')
-				ax.set_zlabel('count')
 				ax.set_xlim(right_lim, left_lim)
 				ax.set_ylim(zs[-1], zs[0])
 				ax.set_zlim(0, val_max)

@@ -42,9 +42,10 @@ class Optimizer():
 			for i in range(0,nb_training_examples, self.batch_size):
 				m_b = ([[input_[indexes[i:i+self.batch_size],:] for input_ in time_step] for time_step in training_data[0]], 
 					[[output_[indexes[i:i+self.batch_size],:] for output_ in time_step] for time_step in training_data[1]])
-				loss += self.train_step(m_b)
+				loss_ = self.train_step(m_b)
+				loss += loss_
 				if func_mb is not None:
-					func_mb(j*self.batch_size+i, self, loss/self.batch_size)
+					func_mb(j*self.batch_size+i, self, loss_/self.batch_size)
 
 			if func_ep is not None:
 				func_ep(j, self, loss/nb_training_examples)
@@ -73,7 +74,7 @@ class SGD(Optimizer):
 		total_batches = self.nb_epochs * np.ceil(nb_training_examples/self.batch_size)
 		self.dec_rate = 1
 		if total_batches != 1:
-			self.dec_rate = (self.lr_end/self.lr_start)**(1/(total_batches*-1))
+			self.dec_rate = (self.lr_end/self.lr_start)**(1/(total_batches-1))
 		super(SGD, self).fit(training_data, *args, **kwargs)
 
 

@@ -19,7 +19,7 @@ class RandomNormal(Initializer):
 
 	def get(self, shape):
 		stddev = self.stddev
-		if stddev == None:
+		if stddev == None:	# Xavier initialization
 			stddev = np.sqrt(2/sum(shape))
 		return np.random.normal(loc=self.mean, scale=stddev, size=shape)
 

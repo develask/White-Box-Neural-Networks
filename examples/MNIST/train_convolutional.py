@@ -67,7 +67,7 @@ test_inputs = [[test_inputs[indexes,:]]]
 test_outputs = [[test_outputs[indexes,:]]]
 
 # Initialize the SGD and define its hyperparameters
-sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=50, lr_start=1, lr_end=0.5)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=128, nb_epochs=50, lr_start=1, lr_end=0.5)
 
 # Before training the NN, we define an (optional) function that will be 
 # called every epoch. This one will display the training and test loss in each epoch.

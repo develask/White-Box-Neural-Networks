@@ -55,7 +55,7 @@ nn = wbnn.NN("1D_regression")
 nn.add_inputs(inp)
 nn.initialize()
 
-sgd = wbnn.optimizers.SGD(nn, batch_size=32, nb_epochs=40, lr_start=0.2, lr_end=0.05)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=32, nb_epochs=40, lr_start=0.2, lr_end=0.05)
 
 # Function per epoch. plot both the real and the NN-modeled function at each epoch
 colors = ["#377eb8", "#4daf4a", "#e41a1c", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#a65628", "#f781bf"]
@@ -88,7 +88,7 @@ def func_per_ep(i, sgd, loss):
 
 func_per_ep(-1, sgd,  "No training yet")
 print("Training...")
-sgd.fit(generate_examples(20000), func_per_ep)
+sgd.fit(generate_examples(20000), func_ep=func_per_ep)
 
 
 

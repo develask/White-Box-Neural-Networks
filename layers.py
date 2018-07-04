@@ -9,14 +9,13 @@ class Layer:
 		self.prev = []
 		self.next_recurrent = []
 		self.prev_recurrent = []
-		self.initialize_done = False
 		self.name = name
 		self.a = None
 		self.error = None
 		self.b_grad = None
 		self.W_grad = None
 		self.prop_idx = 0
-		self.initializer = initializers.RandomNormal()
+		self.initializer = initializers.RandomNormal() # Xavier initialization
 
 	def setInitializer(self, initializer):
 		assert isinstance(initializer, initializers.Initializer)
@@ -46,31 +45,31 @@ class Layer:
 		return self.output_dim
 
 	def get_error_contribution(self, layer, t=0):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def backprop_error(self,t=0, external_error=0):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def reset_grads(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def compute_gradients(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def apply_to_gradients(self, func):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def get_params(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def update(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def initialize(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def prop(self, x_labels, proped = []):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def reset(self, minibatch_size):
 		if len(self.next_recurrent)>0:
@@ -80,13 +79,13 @@ class Layer:
 		self.error = []
 
 	def copy(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def __save__dict__(self):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def __load__dict__(self, d):
-		raise NotImplementedError( "Should have implemented this" )
+		pass
 
 	def __dict_maker__(self, d, dir_):
 		em = [] if isinstance(d, list) else {}
@@ -159,12 +158,6 @@ class Input(Layer):
 	def get_Output_dim(self):
 		return self.input_dim
 
-	def initialize(self):
-		self.initialize_done = True
-
-	def compute_gradients(self):
-		pass
-
 	def get_params(self):
 		return []
 
@@ -178,9 +171,6 @@ class Input(Layer):
 	def __save__dict__(self):
 		return {}, [self.input_dim, self.name]
 
-	def __load__dict__(self, d):
-		pass
-
 class Fully_Connected(Layer):
 	def __init__(self, output_dim, name):
 		super(Fully_Connected, self).__init__(name)
@@ -189,7 +179,6 @@ class Fully_Connected(Layer):
 	def initialize(self):
 		self.W = [self.initializer.get((l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
 		self.b = self.initializer.get((1, self.output_dim))
-		self.initialize_done = True
 
 	def __W_of_layer__(self, layer):
 		return self.W[(self.prev_recurrent + self.prev).index(layer)]
@@ -327,12 +316,6 @@ class LSTM(Layer):
 	def get_i_error(self, t=0):
 		return self.error_i[t-1]
 		
-	def set_in_recurrent_part(self, par = False):
-		pass
-
-	def get_in_recurrent_part(self):
-		return True
-
 	def get_error_contribution(self, layer, t=0):
 		idx = self.layers.index(layer)
 		return np.dot(self.get_o_error(t=t) * self.__dev_sigm__(self.get_o(t=t)), np.transpose(self.W_o_alprevs[idx]))
@@ -715,7 +698,6 @@ class Convolution(Layer):
 		assert sum([(self.prev_recurrent + self.prev)[i].get_Output_dim() != (self.prev_recurrent + self.prev)[i+1].get_Output_dim() for i in range(len(self.prev_recurrent + self.prev)-1)]) == 0
 		self.W = self.initializer.get(self.kernel_shape)
 		self.b = self.initializer.get((self.nb_filters,))
-		self.initialize_done = True
 
 	def get_error(self, t=0):
 		return self.error[t-1].reshape((self.error[t-1].shape[0], self.nb_filters)+tuple((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1))
@@ -880,9 +862,6 @@ class Activation(Layer):
 		else:
 			raise ValueError("Activation function not defined")
 
-	def initialize(self):
-		self.initialize_done = True
-
 	def get_Output_dim(self):
 		return sum([l.get_Output_dim() for l in (self.prev_recurrent+self.prev)])
 
@@ -908,20 +887,8 @@ class Activation(Layer):
 			aux += layer.get_error_contribution(self, t=t)
 		self.error = [aux]+self.error
 
-	def reset_grads(self):
-		pass
-
-	def compute_gradients(self):
-		pass
-
 	def get_params(self):
 		return []
-
-	def apply_to_gradients(self, func):
-		pass
-
-	def update(self):
-		pass
 
 	def prop(self):
 		out = self.ff(np.concatenate([l.get_Output() for l in self.prev_recurrent + self.prev], axis=0))
@@ -933,9 +900,6 @@ class Activation(Layer):
 
 	def __save__dict__(self):
 		return {}, [self.act_fun, self.name]
-
-	def __load__dict__(self, d):
-		pass
 
 class Loss(Layer):
 	def __init__(self, loss, name):
@@ -1008,23 +972,8 @@ class Loss(Layer):
 	def backprop_error(self,t=0, desired_output=None):
 		self.desired_output = desired_output
 
-	def reset_grads(self):
-		pass
-
-	def compute_gradients(self):
-		pass
-
 	def get_params(self):
 		return []
-
-	def apply_to_gradients(self, func):
-		pass
-
-	def update(self):
-		pass
-
-	def initialize(self):
-		pass
 
 	def prop(self, desired_output=None):
 		out = self.prev[0].get_Output()
@@ -1038,9 +987,6 @@ class Loss(Layer):
 
 	def __save__dict__(self):
 		return {}, [self.loss, self.name]
-
-	def __load__dict__(self, d):
-		pass
 
 class Dropout(Layer):
 	def __init__(self, probability, name):
@@ -1081,23 +1027,8 @@ class Dropout(Layer):
 		self.mask = np.random.rand(minibatch_size, self.get_Output_dim()) > self.probability
 		self.error = []
 
-	def reset_grads(self):
-		pass
-
-	def compute_gradients(self):
-		pass
-
 	def get_params(self):
 		return []
-
-	def apply_to_gradients(self, func):
-		pass
-
-	def update(self):
-		pass
-
-	def initialize(self):
-		pass
 
 	def prop(self, desired_output=None):
 		out = np.concatenate([l.get_Output(t=0 if l.prop_idx >= self.prop_idx else -1) for l in  self.prev_recurrent]+[l.get_Output(t=0) for l in self.prev], axis = 1) * self.mask
@@ -1109,9 +1040,6 @@ class Dropout(Layer):
 
 	def __save__dict__(self):
 		return {}, [self.probability, self.name]
-
-	def __load__dict__(self, d):
-		pass
 
 class MaxPooling(Layer):
 	def __init__(self, shape, kernel, name):
@@ -1143,8 +1071,6 @@ class MaxPooling(Layer):
 			elif d > k:
 				i = np.expand_dims(i, axis=-1)
 		return i
-
-
 
 	def backprop_error(self,t=0):
 		#  this function will be used during the BP. to calculate the error
@@ -1178,20 +1104,8 @@ class MaxPooling(Layer):
 		self.masks = []
 		self.error = []
 
-	def reset_grads(self):
-		pass
-
-	def compute_gradients(self):
-		pass
-
 	def get_params(self):
 		return []
-
-	def apply_to_gradients(self, func):
-		pass
-
-	def update(self):
-		pass
 
 	def initialize(self):
 		assert sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]) == np.multiply.reduce(self.shape), "%s: %s --> %d" % (self.name, self.shape, sum([l.get_Output_dim() for l in self.prev_recurrent + self.prev]))
@@ -1223,9 +1137,3 @@ class MaxPooling(Layer):
 
 	def __save__dict__(self):
 		return {}, [self.shape, self.kernel_shape, self.name]
-
-	def __load__dict__(self, d):
-		pass
-		
-
-		

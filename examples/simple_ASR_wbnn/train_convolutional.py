@@ -62,7 +62,11 @@ test_inputs = [[np.concatenate(test_inputs, axis=1)]]
 
 
 # Initialize the SGD and define its hyperparameters
-sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=40, lr_start=0.01, lr_end=0.01, clipping=(-2, 2))
+sgd = wbnn.optimizers.Adam(net=nn, batch_size=128, nb_epochs=40, alpha=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8)
+
+clip = wbnn.optimizers.Clipping(net=nn, min_=-2, max_=2)
+
+sgd.add_regularizer(clip)
 
 # Before training the NN, we define an (optional) function that will be 
 # called every epoch. This one will display the training and test loss in each epoch.
@@ -92,7 +96,7 @@ def function_for_each_epoch(epoch, optimizer, loss_train):
 	print("min:", min_)
 
 # Fit the net!
-sgd.fit((train_inputs, train_outputs), func=function_for_each_epoch)
+sgd.fit((train_inputs, train_outputs), func_ep=function_for_each_epoch)
 
 # Save the model
 nn.save("./models/"+nn.name)

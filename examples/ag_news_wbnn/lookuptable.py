@@ -11,29 +11,15 @@ class LookUpTable(wbnn.layers.Layer):
 	def __init__(self, lookup_matrix, name):
 		super(LookUpTable, self).__init__(name)
 		self.lookup = lookup_matrix
-
 	def initialize(self):
 		assert len(self.prev) == 1 and len(self.prev_recurrent) == 0
-
 	def get_Output_dim(self):
 		return self.lookup.shape[1]
-
 	def prop(self):
 		prev_out = self.prev[0].get_Output()
 		out = self.lookup[prev_out, :].reshape((prev_out.shape[0], self.get_Output_dim()))
 		self.a = self.a + [out]
 		return out
-
-	def get_error_contribution(self, layer, t=0):
-		pass
-	def backprop_error(self, t=0, external_error =0):
-		pass
-	def reset_grads(self):
-		pass
-	def compute_gradients(self):
-		pass
-	def apply_to_gradients(self, func):
-		pass
 	def update(self):
 		pass
 	def copy(self):

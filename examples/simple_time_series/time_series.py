@@ -74,7 +74,7 @@ nn1.add_inputs(inp)
 nn1.initialize()
 
 print("Training sigmoid-RNN...")
-sgd1 = wbnn.optimizers.SGD(nn1, batch_size=256, nb_epochs=15, lr_start=1, lr_end=1)
+sgd1 = wbnn.optimizers.SGD(net=nn1, batch_size=256, nb_epochs=15, lr_start=1, lr_end=1)
 sgd1.lista_preds = [] # We initialize this list to save the predictions of the series in each epoch
 
 # We save a prediction of the series in each epoch.
@@ -119,7 +119,7 @@ nn2.initialize()
 
 print()
 print("Training LSTM-RNN...")
-sgd2 = wbnn.optimizers.SGD(nn2, batch_size=256, nb_epochs=15, lr_start=1, lr_end=1)
+sgd2 = wbnn.optimizers.SGD(net=nn2, batch_size=256, nb_epochs=15, lr_start=1, lr_end=1)
 sgd2.lista_preds = []
 
 sgd2.fit(train, predict_per_epoch)

@@ -62,7 +62,7 @@ test_inputs = [[np.load("./data/t10k_images.npy")]]
 test_outputs = [[np.load("./data/t10k_labels.npy")]]
 
 # Initialize the SGD and define its hyperparameters
-sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=50, lr_start=0.5, lr_end=0.2)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=128, nb_epochs=50, lr_start=0.5, lr_end=0.2)
 
 
 # Before training the NN, we define an (optional) function that will be 
@@ -79,7 +79,7 @@ def function_for_each_epoch(epoch, optimizer, loss_train):
 	print("\tTest loss:  "+str(loss_dev))
 
 # Fit the net!
-sgd.fit((train_inputs, train_outputs), func=function_for_each_epoch)
+sgd.fit((train_inputs, train_outputs), func_ep=function_for_each_epoch)
 
 # Save the model
 nn.save("./models/"+nn.name)

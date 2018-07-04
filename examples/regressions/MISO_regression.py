@@ -54,7 +54,7 @@ nn = wbnn.NN("2D_regression")
 nn.add_inputs(inp)
 nn.initialize()
 
-sgd = wbnn.optimizers.SGD(nn, batch_size=64, nb_epochs=40, lr_start=0.2, lr_end=0.05)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=64, nb_epochs=40, lr_start=0.2, lr_end=0.05)
 
 # Function per epoch. plot both the NN-modeled function at each epoch
 colors = ["#377eb8", "#4daf4a", "#e41a1c", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#a65628", "#f781bf"]

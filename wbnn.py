@@ -7,10 +7,6 @@ class NN():
 	def __init__(self, name):
 		self.name = name
 		self.inputs = []
-		self.next = []
-		self.prev = []
-		self.next_rercurrent = []
-		self.prev_recurrent = []
 		self.output_layers = []
 
 	def calculate_layer_order(self):
@@ -19,42 +15,13 @@ class NN():
 		this function calculates the propagation order.
 		Using the reverse order, work for backpropagation.
 		"""
-
-		def importing_dnn(nn):
-			# modify conections on next and prev
-			for inp in nn.inputs:
-				l_prev = inp.prev
-				try:
-					idx = l_prev.next.index(nn)
-					l_prev.next[idx:idx+1] = inp.next
-					for l_hidden in inp.next:
-						l_hidden.prev[l_hidden.prev.index(inp)] = l_prev
-				except ValueError:
-					idx = l_prev.next_rercurrent.index(nn)
-					assert idx != -1
-					l_prev.next_rercurrent[idx:idx+1] = inp.next
-					for l_hidden in inp.next:
-						l_hidden.prev_recurrent[l_hidden.prev_recurrent.index(inp)] = l_prev
-			nn.prop_order[-1].next_rercurrent += nn.next_rercurrent
-			for l in nn.next_rercurrent:
-				l.prev_recurrent[l.prev_recurrent.index(nn)] = nn.prop_order[-1]
-			nn.prop_order[-1].next += nn.next
-			for l in nn.next:
-				l.prev[l.prev.index(nn)] = nn.prop_order[-1]
-
 		self.prop_order = self.inputs.copy()
 		i = 0
 		while i < len(self.prop_order):
 			layer = self.prop_order[i]
 			for l in layer.next:
 				if sum(map(lambda l_: not l_ in self.prop_order and not l_ is l, l.prev)) == 0 and not l in self.prop_order:
-					to_add = [l]
-					if isinstance(l, NN):
-						l.calculate_layer_order()
-						importing_dnn(l)
-						to_add = l.prop_order[len(l.inputs):]
-
-					self.prop_order += to_add
+					self.prop_order += [l]
 			i+=1
 
 		for l_i in range(len(self.prop_order)):
@@ -74,28 +41,6 @@ class NN():
 	def add_inputs(self, *layers):
 		for layer in layers:
 			self.inputs.append(layer)
-
-	def addNext(self, layer):
-		self.next.append(layer)
-		layer.__addPrev__(self)
-
-	def __addPrev__(self, layer):
-		idx = len(self.prev_recurrent)+len(self.prev)
-		assert idx < len(self.inputs)
-		assert layer.get_Output_dim() == self.inputs[idx].get_Output_dim()
-		self.prev.append(layer)
-		self.inputs[idx].prev = layer
-
-	def addNextRecurrent(self, layer):
-		self.next_rercurrent.append(layer)
-		layer.__addPrevRecurrent__(self)
-
-	def __addPrevRecurrent__(self, layer):
-		idx = len(self.prev_recurrent)+len(self.prev)
-		assert idx < len(self.inputs)
-		assert layer.get_Output_dim() == self.inputs[idx].get_Output_dim()
-		self.prev_recurrent.append(layer)
-		self.inputs[idx].prev = layer
 
 	def get_Output(self, t=0):
 		return [l.get_Output(t=t) for l in self.output_layers]

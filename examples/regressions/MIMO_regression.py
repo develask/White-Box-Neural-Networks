@@ -96,7 +96,7 @@ nn.add_inputs(inp1, inp2)
 nn.initialize()
 
 # Define the optimizer.
-sgd = wbnn.optimizers.SGD(nn, batch_size=128, nb_epochs=40, lr_start=0.2, lr_end=0.2)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=128, nb_epochs=40, lr_start=0.2, lr_end=0.2)
 
 
 # function per epoch. Save the two functions modeled by the net in each epoch. 

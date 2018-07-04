@@ -57,58 +57,25 @@ nn.add_inputs(x)
 nn.initialize()
 
 
-sgd = wbnn.optimizers.SGD(nn, batch_size=256, nb_epochs=10, lr_start=0.1, lr_end=0.05, clipping=(-2, 2))
+sgd = wbnn.optimizers.Adam(net=nn, batch_size=256, nb_iterations=1000, alpha=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8)
+
+clip = wbnn.optimizers.Clipping(net=nn, min_=-2, max_=2)
+sgd.add_regularizer(clip)
 
 # In this case we will print the test/train losses but also save the model in each epoch.
 def function_for_each_epoch(epoch, optimizer, loss_train):
-	# Set the test matrix for the test loss
-	lu.lookup = embeddings_test
-	loss_dev = optimizer.net.get_loss_of_data((test_inputs, [[test_class]]))
-	# Then put the train embeddings back
-	lu.lookup = embeddings_train
-	print("Epoch: "+str(epoch))
-	print("\tTrain loss: "+str(loss_train))
-	print("\tTest loss:  "+str(loss_dev))
-	nn.save("./models/"+nn.name+"_it"+str(epoch))
+	if epoch % 10 == 9:
+		# Set the test matrix for the test loss
+		lu.lookup = embeddings_test
+		loss_dev = optimizer.net.get_loss_of_data((test_inputs, [[test_class]]))
+		# Then put the train embeddings back
+		lu.lookup = embeddings_train
+		print("Epoch: "+str(epoch//10))
+		print("\tTrain loss: "+str(loss_train))
+		print("\tTest loss:  "+str(loss_dev))
+		nn.save("./models/"+nn.name+"_it"+str(epoch//10))
 
 
 # Fit the net!
-sgd.fit((train_inputs, [[train_class]]), func=function_for_each_epoch)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+sgd.fit((train_inputs, [[train_class]]), func_ep=function_for_each_epoch)
 

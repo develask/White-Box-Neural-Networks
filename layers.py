@@ -703,36 +703,45 @@ class Convolution(Layer):
 		return self.error[t-1].reshape((self.error[t-1].shape[0], self.nb_filters)+tuple((np.subtract(self.shape, self.kernel_shape[1:])//self.step)+1))
 
 	def get_error_contribution(self, layer, t=0):
-		# dimension = loss_gradient.shape[1]//self.nb_filters
-		# self.error.append([loss_gradient[:,dimension*i:dimension*(i+1)] for i in range(self.nb_filters)])
-		if len(self.prev+self.prev_recurrent) != 1:
-			inp_shape = tuple(self.shape[1:])
-			kernel_shape = tuple(self.kernel_shape[2:])
-			index_input = (self.prev_recurrent+self.prev).index(layer)
-			pad = ((0,0), (0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
-		else:
-			inp_shape = self.shape
-			kernel_shape = self.kernel_shape[1:]
-			pad = ((0,0), (0,0))+tuple([(x,x)for x in np.subtract(kernel_shape, 1)])
 
-		kk = np.zeros((self.x_M.shape[0],self.nb_filters)+tuple(np.subtract(self.shape, self.kernel_shape[1:])+1))
-		kk[[slice(None), slice(None)]+[ slice(None,None,x) for x in self.step]] = self.get_error(t=t)
-		mat = np.lib.pad(kk, pad, 'constant', constant_values=0)
-		if len(self.prev+self.prev_recurrent) != 1:
-			mat = mat[:,:,0,...]
-		for i in range(len(kernel_shape)):
-			mat = np.flip(mat,axis=i+2)
-		shape = (mat.shape[0], mat.shape[1]) + kernel_shape + inp_shape
-		strides = tuple([mat.strides[0], mat.strides[1]]) +  mat.strides[2:] + mat.strides[2:]
-		mat = np.lib.stride_tricks.as_strided(mat, shape=shape, strides=strides)
-		for i in range(len(kernel_shape)):
-			mat = np.flip(mat,axis=i+2+len(kernel_shape))
-		chars = ''.join([chr(97+i) for i in range(len(mat.shape))])
-		if len(self.prev+self.prev_recurrent) != 1:
-			result = np.einsum(chars[1:len(self.W.shape[1:])+1]+','+chars+'->a'+chars[2+len(self.W.shape[2:]):], self.W[:,index_input,...], mat)
+		if len(self.contributions) >= (-t)+1:
+			aux = self.contributions[-t]
 		else:
-			result = np.einsum(chars[1:len(self.W.shape)+1]+','+chars+'->a'+chars[1+len(self.W.shape):], self.W, mat)
-		return result.reshape(result.shape[0], layer.get_Output_dim())
+			error = self.get_error(t=t)
+			error = np.moveaxis(error, 1, -1)
+			shape_tmp = error.shape[:-1]
+			error = error.reshape(-1, self.nb_filters)
+			W_tmp = self.W.reshape(self.nb_filters, -1)
+
+			error_x_M = np.dot(error, W_tmp)
+			error_x_M = error_x_M.reshape(shape_tmp+self.kernel_shape[1:])
+			aux = np.zeros((shape_tmp[0],) + tuple([shape_tmp[i]*self.step[i-1] for i in range(1,len(shape_tmp)) ]) + self.kernel_shape[1:])
+
+			aux[[slice(None)]+[slice(None,None,x) for x in self.step]+[slice(None) for x in self.step]] = error_x_M
+
+			aux = np.lib.pad(aux,[(0,0)]+[(x-1,x-1) for x in self.kernel_shape[1:]]+[(0,0) for x in self.step] , 'constant', constant_values=0)
+
+			shape = (aux.shape[0],) + self.shape + self.kernel_shape[1:]
+			strides = list(aux.strides)
+			num_dimensions = len(self.shape)
+			for i in range(-1, -num_dimensions-1, -1):
+				strides[i] -= strides[i-num_dimensions]
+
+			aux = np.lib.stride_tricks.as_strided(aux, strides=strides)
+			aux = aux[[slice(None)]+[slice(x-1,None,None) for x in self.kernel_shape[1:]]+[slice(None) for x in self.kernel_shape[1:]]]
+
+			aux = np.sum(aux, axis=tuple(range(-1, -num_dimensions-1, -1)))
+
+			aux = aux.reshape(aux.shape[0], -1)
+
+			self.contributions.insert(0, aux)
+
+		idx = 0
+		for l in self.prev_recurrent+self.prev:
+			if l is not layer:
+				idx+=l.get_Output_dim()
+			else:
+				return aux[idx:idx+layer.get_Output_dim()]
 
 	def backprop_error(self,t=0):
 		aux = 0
@@ -749,10 +758,19 @@ class Convolution(Layer):
 
 	def compute_gradients(self):
 		num_t = len(self.error)
-		self.b_grad = np.asarray([sum([np.sum(self.get_error(t=t)[:,f,...]) for t in range(0,-num_t, -1)]) for f in range(self.nb_filters)])
-		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
+		num_dimensions = len(self.shape)
+
+		self.b_grad = 0
+		self.W_grad = 0
+
 		for t in range(0,-num_t, -1):
-			self.W_grad += np.einsum('aF'+chars[1+len(self.kernel_shape[1:]):]+','+chars+'->F'+chars[1:len(self.kernel_shape[1:])+1], self.get_error(t=t), self.x_M)
+			error = self.get_error(t=t)
+			self.b_grad += np.sum(error, axis=tuple([0]+list(range(2, num_dimensions+2))))
+			error = np.moveaxis(error, 1, -1)
+			shape_tmp = error.shape[:-1]
+			error = error.reshape(-1, self.nb_filters)
+
+			self.W_grad += np.dot(error.T, self.x_M[t-1]).reshape(self.W.shape)
 
 	def apply_to_gradients(self, func):
 		self.b_grad = func(self.b_grad)
@@ -780,14 +798,33 @@ class Convolution(Layer):
 		for sh in reversed(self.shape):
 			strides.insert(0, strides[0]*sh)
 		strides = (strides[0],) + tuple(strides[1:]) + tuple(np.multiply(strides[1:], self.step))
-		self.x_M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
-		chars = ''.join([chr(97+i) for i in range(len(self.x_M.shape))])
-		out = np.einsum('L'+chars[1:len(self.kernel_shape[1:])+1]+','+chars+'->aL'+chars[1+len(self.kernel_shape[1:]):], self.W, self.x_M)
-		for i in range(self.nb_filters):
-			out[:,i,...] += self.b[i]
-		out = out.reshape(out.shape[0], self.output_dim)
+		x_M = np.lib.stride_tricks.as_strided(inp, shape=shape, strides=strides)
+		x_M = np.moveaxis(x_M, list(range(1, len(self.shape)+1)), list(range(-len(self.shape),0)))
+		new_shape = x_M.shape
+		x_M = x_M.reshape((np.multiply.reduce(new_shape[:len(self.shape)+1]), np.multiply.reduce(new_shape[len(self.shape)+1:]) ))
+
+		self.x_M.append(x_M)
+		
+		W_tmp = self.W.reshape(self.nb_filters, -1).T
+
+		out = (np.dot(x_M, W_tmp) + self.b)
+
+		out = out.reshape(new_shape[:len(self.shape)+1]+ (-1,))
+		out = np.moveaxis(out, -1, 1)
+
+		out = out.reshape(-1, self.output_dim)
+
 		self.a = self.a + [out]
 		return out
+
+	def reset(self, minibatch_size):
+		if len(self.next_recurrent)>0:
+			self.a = [np.zeros((minibatch_size, self.get_Output_dim()))]
+		else:
+			self.a = []
+		self.error = []
+		self.x_M = []
+		self.contributions = []
 
 	def copy(self):
 		return Convolution(self.shape, self.kernel_shape[1:], self.step, self.nb_filters, self.name)
@@ -1131,9 +1168,8 @@ class MaxPooling(Layer):
 		self.a = self.a + [out]
 		return out
 
-
 	def copy(self):
-		return Dropout(self.shape, self.kernel_shape, self.name)
+		return MaxPooling(self.shape, self.kernel_shape, self.name)
 
 	def __save__dict__(self):
 		return {}, [self.shape, self.kernel_shape, self.name]

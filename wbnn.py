@@ -8,6 +8,7 @@ class NN():
 		self.name = name
 		self.inputs = []
 		self.output_layers = []
+		self.info = {} 
 
 	def calculate_layer_order(self):
 		"""
@@ -135,7 +136,8 @@ class NN():
 			dir_ = dir_+time.strftime("_%Y-%m-%d_%H-%M")
 			os.makedirs(dir_)
 		inf = {
-			'prop_order': [id(l) for l in self.prop_order]
+			'prop_order': [id(l) for l in self.prop_order],
+			'info': self.info
 		}
 		for layer in self.prop_order:
 			l_id = id(layer)
@@ -155,6 +157,8 @@ class NN():
 			inf = json.loads(f.read())
 			layers_ = [layers.Layer.load(dir_+'/'+str(id_)) for id_ in inf['prop_order']]
 			layers_id = [str(x) for x in inf['prop_order']]
+			external_info = inf['info']
+			del inf['info']
 			del inf['prop_order']
 			for l in inf:
 				idx = layers_id.index(str(l))
@@ -165,6 +169,7 @@ class NN():
 
 			inps = list(filter(lambda x: isinstance(x, layers.Input), layers_))
 			nn = NN(dir_)
+			nn.info = external_info
 			for inp in inps:
 				nn.add_inputs(inp)
 

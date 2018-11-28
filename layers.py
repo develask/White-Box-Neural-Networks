@@ -705,7 +705,8 @@ class Convolution(Layer):
 			error_x_M = error_x_M.reshape(shape_tmp+self.kernel_shape[1:])
 			aux = np.zeros((shape_tmp[0],) + tuple([shape_tmp[i]*self.step[i-1] for i in range(1,len(shape_tmp)) ]) + self.kernel_shape[1:])
 
-			aux[[slice(None)]+[slice(None,None,x) for x in self.step]+[slice(None) for x in self.step]] = error_x_M
+			aux[tuple([slice(None)]+[slice(None,None,x) for x in self.step]+[slice(None) for x in self.step])] = error_x_M
+
 
 			aux = np.lib.pad(aux,[(0,0)]+[(x-1,x-1) for x in self.kernel_shape[1:]]+[(0,0) for x in self.step] , 'constant', constant_values=0)
 
@@ -716,7 +717,7 @@ class Convolution(Layer):
 				strides[i] -= strides[i-num_dimensions]
 
 			aux = np.lib.stride_tricks.as_strided(aux, strides=strides)
-			aux = aux[[slice(None)]+[slice(x-1,None,None) for x in self.kernel_shape[1:]]+[slice(None) for x in self.kernel_shape[1:]]]
+			aux = aux[tuple([slice(None)]+[slice(x-1,None,None) for x in self.kernel_shape[1:]]+[slice(None) for x in self.kernel_shape[1:]])]
 
 			aux = np.sum(aux, axis=tuple(range(-1, -num_dimensions-1, -1)))
 
@@ -729,7 +730,7 @@ class Convolution(Layer):
 			if l is not layer:
 				idx+=l.get_Output_dim()
 			else:
-				return aux[idx:idx+layer.get_Output_dim()]
+				return aux[:,idx:idx+layer.get_Output_dim()]
 
 	def backprop_error(self,t=0):
 		aux = 0
@@ -1103,7 +1104,7 @@ class MaxPooling(Layer):
 
 		if aux is not 0:
 			i.insert(0, np.repeat(np.arange(aux.shape[0]), i[0].shape[0]//aux.shape[0]))
-			d[i] = aux.flatten()
+			d[tuple(i)] = aux.flatten()
 
 		aux = d.reshape(d.shape[0], np.multiply.reduce(d.shape[1:]))
 

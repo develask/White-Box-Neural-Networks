@@ -48,23 +48,31 @@ class Optimizer():
 					[[output_[indexes,:] for output_ in time_step] for time_step in training_data[1]])
 			yield m_b, False
 
+	def iteration_stop_criteria(self, training_data):
+		nb_training_examples = training_data[1][0][0].shape[0]
+		while self.stop_criteria(self):
+			indexes = np.random.randint(nb_training_examples, size=self.batch_size)
+			m_b = ([[input_[indexes,:] for input_ in time_step] for time_step in training_data[0]], 
+					[[output_[indexes,:] for output_ in time_step] for time_step in training_data[1]])
+			yield m_b, False
+
 	def fit(self, training_data,
 				func_ep = lambda *x: print(x[0],"training loss:", x[2]),
 				func_mb = None):
 		if self.nb_iterations and func_mb == None:
 			func_mb=func_ep
-		i_it = i_ep = loss_ac = 0
+		self.i_it = self.i_ep = self.loss_ac = 0
 		nb_training_examples = training_data[1][0][0].shape[0]
 		for m_b, do_func_ep in (self.iteration_loop if self.nb_iterations != None else self.epoch_loop)(training_data):
 			loss = self.train_step(m_b)
-			loss_ac += loss
+			self.loss_ac += loss
 			if func_mb is not None:
-				func_mb(i_it, self, loss/m_b[1][0][0].shape[0])
-				i_it += 1
+				func_mb(self.i_it, self, loss/m_b[1][0][0].shape[0])
+				self.i_it += 1
 			if do_func_ep and func_ep is not None:
-				func_ep(i_ep, self, loss_ac/nb_training_examples)
-				i_ep += 1
-				loss_ac = 0
+				func_ep(self.i_ep, self, self.loss_ac/nb_training_examples)
+				self.i_ep += 1
+				self.loss_ac = 0
 
 	def add_regularizer(self, regularizer):
 		assert isinstance(regularizer, Regularizer)

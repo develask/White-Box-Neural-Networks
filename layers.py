@@ -78,9 +78,6 @@ class Layer:
 			self.a = []
 		self.error = []
 
-	def copy(self):
-		pass
-
 	def __save__dict__(self):
 		pass
 
@@ -165,9 +162,6 @@ class Input(Layer):
 		self.a = self.a + [x_labels]
 		return x_labels
 
-	def copy(self):
-		return Input(self.input_dim, self.name)
-
 	def __save__dict__(self):
 		return {}, [self.input_dim, self.name]
 
@@ -179,6 +173,10 @@ class Fully_Connected(Layer):
 	def initialize(self):
 		self.W = [self.initializer.get((l.get_Output_dim(), self.get_Output_dim())) for l in self.prev_recurrent + self.prev]
 		self.b = self.initializer.get((1, self.output_dim))
+
+	def reset_grads(self):
+		self.b_grad = 0
+		self.W_grad = [0]*(len(self.prev)+len(self.prev_recurrent))
 
 	def __W_of_layer__(self, layer):
 		return self.W[(self.prev_recurrent + self.prev).index(layer)]
@@ -198,10 +196,6 @@ class Fully_Connected(Layer):
 		for layer in self.next:
 			aux += layer.get_error_contribution(self, t=t)
 		self.error = [aux]+self.error
-
-	def reset_grads(self):
-		self.b_grad = 0
-		self.W_grad = [0]*(len(self.prev)+len(self.prev_recurrent))
 
 	def compute_gradients(self):
 		num_t = len(self.error)
@@ -251,9 +245,6 @@ class Fully_Connected(Layer):
 		out = inp + self.b
 		self.a = self.a + [out]
 		return out
-
-	def copy(self):
-		return Fully_Connected(self.output_dim, self.name)
 
 	def __save__dict__(self):
 		return {
@@ -634,9 +625,6 @@ class LSTM(Layer):
 		self.error_f = []
 		self.error_i = []
 
-	def copy(self):
-		return LSTM(self.num_cel, self.name)
-
 	def __save__dict__(self):
 		return {
 			"W_i_alprevs": self.W_i_alprevs,
@@ -826,9 +814,6 @@ class Convolution(Layer):
 		self.x_M = []
 		self.contributions = []
 
-	def copy(self):
-		return Convolution(self.shape, self.kernel_shape[1:], self.step, self.nb_filters, self.name)
-
 	def __save__dict__(self):
 		return {
 			'W': self.W,
@@ -932,9 +917,6 @@ class Activation(Layer):
 		self.a = self.a + [out]
 		return out
 
-	def copy(self):
-		return Activation_Layer(self.act_fun, self.name)
-
 	def __save__dict__(self):
 		return {}, [self.act_fun, self.name]
 
@@ -1019,9 +1001,6 @@ class Loss(Layer):
 		self.a = self.a + [out]
 		return out
 
-	def copy(self):
-		return Loss(self.loss, self.name)
-
 	def __save__dict__(self):
 		return {}, [self.loss, self.name]
 
@@ -1071,9 +1050,6 @@ class Dropout(Layer):
 		out = np.concatenate([l.get_Output(t=0 if l.prop_idx >= self.prop_idx else -1) for l in  self.prev_recurrent]+[l.get_Output(t=0) for l in self.prev], axis = 1) * self.mask
 		self.a = self.a + [out]
 		return out
-
-	def copy(self):
-		return Dropout(self.probability, self.name)
 
 	def __save__dict__(self):
 		return {}, [self.probability, self.name]
@@ -1167,9 +1143,6 @@ class MaxPooling(Layer):
 
 		self.a = self.a + [out]
 		return out
-
-	def copy(self):
-		return MaxPooling(self.shape, self.kernel_shape, self.name)
 
 	def __save__dict__(self):
 		return {}, [self.shape, self.kernel_shape, self.name]

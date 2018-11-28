@@ -54,7 +54,7 @@ nn = wbnn.NN("2D_regression")
 nn.add_inputs(inp)
 nn.initialize()
 
-sgd = wbnn.optimizers.SGD(net=nn, batch_size=64, nb_epochs=40, lr_start=0.2, lr_end=0.05)
+sgd = wbnn.optimizers.SGD(net=nn, batch_size=64, nb_iterations=125000, lr_start=0.2, lr_end=0.05)
 
 # Function per epoch. plot both the NN-modeled function at each epoch
 colors = ["#377eb8", "#4daf4a", "#e41a1c", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#a65628", "#f781bf"]
@@ -76,29 +76,39 @@ y_real = funct(x1, x2)
 xs = np.concatenate([x1, x2], axis=1)
 
 
+
+berretura = 7
+coef = sgd.nb_iterations / (4**berretura)
+
+print_time = [int(coef*x**berretura) for x in range(5)]
+
+
 def func_per_ep(i, sgd, loss):
-	print("Epoch:", i+1, "Training Loss:", loss)
-	fig = plt.figure()
-	y_pred = nn.prop([[xs]])[-1][0][:,0]
+	if (i+1) in print_time:
+		print("Iteration:", i+1, "Training Loss:", loss)
+		fig = plt.figure()
+		y_pred = nn.prop([[xs]])[-1][0][:,0]
 
-	ax = fig.gca(projection='3d')
+		ax = fig.gca(projection='3d')
 
-	surf = ax.plot_surface(x1.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), x2.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), y_pred.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), cmap=cm.coolwarm, vmin=0, vmax=1,
-	                       linewidth=0, antialiased=False)
+		surf = ax.plot_surface(x1.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), x2.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), y_pred.reshape(plt_nb_points_per_axis, plt_nb_points_per_axis), cmap=cm.coolwarm, vmin=0, vmax=1,
+		                       linewidth=0, antialiased=False)
 
-	ax.set_zlim(0, 1)
-	ax.zaxis.set_major_locator(LinearLocator(10))
-	ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+		ax.set_zlim(0, 1)
+		ax.zaxis.set_major_locator(LinearLocator(10))
+		ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
 
-	ax.set_xlabel('x')
-	ax.set_ylabel('y')
-	ax.set_zlabel('z')
+		ax.set_xlabel('x')
+		ax.set_ylabel('y')
+		ax.set_zlabel('z')
 
-	fig.colorbar(surf, shrink=0.5, aspect=5)
-	plt.title('Epoch: '+str(i+1), loc='left')
+		# fig.colorbar(surf, shrink=0.5, aspect=5)
+		# plt.title('Iteration: '+str(i+1), loc='left')
 
-	fig.savefig(plot_dir+'/pred_'+str(i+1)+'.png')   # save the figure to file
-	plt.close(fig) 
+		plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, hspace = 0, wspace = 0)
+
+		fig.savefig(plot_dir+'/pred_'+str(i+1)+'.eps', bbox_inches = 'tight', pad_inches = 0)   # save the figure to file
+		plt.close(fig) 
 
 # Additionally, we will also plot separately the real 2D function, with this piece of code.
 fig = plt.figure()
@@ -115,10 +125,11 @@ ax.set_xlabel('x')
 ax.set_ylabel('y')
 ax.set_zlabel('z')
 
-fig.colorbar(surf, shrink=0.5, aspect=5)
-plt.title("Real", loc='left')
+# fig.colorbar(surf, shrink=0.5, aspect=5)
+# plt.title("Real", loc='left')
+plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, hspace = 0, wspace = 0)
 
-fig.savefig(plot_dir+'/real.png')   # save the figure to file
+fig.savefig(plot_dir+'/real.eps', bbox_inches = 'tight', pad_inches = 0)   # save the figure to file
 plt.close(fig) 
 
 # Run the function before starting to train, to see how the prediction is with random parameters.

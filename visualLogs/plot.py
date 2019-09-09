@@ -104,7 +104,20 @@ class Plotter():
 	def __init__(self, files_to_read):
 		self.files_to_read = files_to_read
 
-		show_folder =  len(set([file_to_read.split('/')[-2] for file_to_read in files_to_read])) > 1
+		show_folder =  len(set(['/'.join(file_to_read.split('/')[:-1]) for file_to_read in files_to_read])) > 1
+
+		common_name = [file_to_read.split('/') for file_to_read in files_to_read]
+		from_idx = 0
+		for i in range(len(common_name[0])):
+			w = common_name[0][i]
+			for ws2 in common_name[1:]:
+				if ws2[i] != w:
+					from_idx = i
+					break
+			if from_idx != 0:
+				break
+		if from_idx == 0:
+			from_idx = len(common_name[0])
 
 		self.logs = {}
 		for file_to_read in files_to_read:
@@ -114,7 +127,7 @@ class Plotter():
 
 			name = '_'.join(file_to_read.split('/')[-1].split('_')[1:])[:-4]
 			if show_folder:
-				name = name + ' ('+file_to_read.split('/')[-2]+')'
+				name = name + ' ('+'/'.join(file_to_read.split('/')[from_idx:-1])+')'
 
 			my_logs = self.read_file(file_to_read)
 			self.logs[name] = my_logs
